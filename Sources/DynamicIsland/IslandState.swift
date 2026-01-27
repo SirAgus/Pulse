@@ -206,20 +206,29 @@ class IslandState: ObservableObject {
     func refreshNotes() {
         isSyncingNotes = true
         DispatchQueue.global(qos: .userInitiated).async {
-            // Get IDs and names separately as AppleScript struggles with complex objects
-            let idsScript = "tell application \"Notes\" to get id of every note"
-            let namesScript = "tell application \"Notes\" to get name of every note"
+            // Using a loop with a custom delimiter (|||) to handle note names with commas
+            let script = """
+            tell application "Notes"
+                set out to ""
+                repeat with n in every note
+                    set out to out & (id of n) & "|||" & (name of n) & linefeed
+                end repeat
+                return out
+            end tell
+            """
             
-            let idsRaw = self.executeAppleScript(idsScript) ?? ""
-            let namesRaw = self.executeAppleScript(namesScript) ?? ""
+            guard let result = self.executeAppleScript(script) else {
+                DispatchQueue.main.async { self.isSyncingNotes = false }
+                return
+            }
             
-            let ids = idsRaw.components(separatedBy: ", ").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            let names = namesRaw.components(separatedBy: ", ").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            
+            let lines = result.components(separatedBy: .newlines).filter { !$0.isEmpty }
             var collected: [NoteItem] = []
-            for i in 0..<min(ids.count, names.count) {
-                if !ids[i].isEmpty {
-                    collected.append(NoteItem(id: ids[i], content: names[i]))
+            
+            for line in lines {
+                let parts = line.components(separatedBy: "|||")
+                if parts.count >= 2 {
+                    collected.append(NoteItem(id: parts[0], content: parts[1]))
                 }
             }
             
@@ -255,6 +264,11 @@ class IslandState: ObservableObject {
         let script = "tell application \"Notes\" to set body of note id \"\(noteID)\" to \"<div>\(safeContent)</div>\""
         executeAppleScript(script)
         refreshNotes()
+    }
+    
+    func openNotesApp() {
+        let script = "tell application \"Notes\" to activate"
+        executeAppleScript(script)
     }
 
     func showNotification(_ text: String) {

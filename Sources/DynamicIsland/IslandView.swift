@@ -250,12 +250,21 @@ struct IslandView: View {
                     .font(.system(size: 10, weight: .black))
                     .opacity(0.4)
                 Spacer()
-                Button(action: { state.addNote() }) {
-                    Image(systemName: "plus.circle.fill")
-                        .foregroundColor(.yellow)
-                        .font(.system(size: 20))
+                HStack(spacing: 15) {
+                    Button(action: { state.openNotesApp() }) {
+                        Image(systemName: "arrow.up.right.circle.fill")
+                            .font(.system(size: 20))
+                            .opacity(0.3)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: { state.addNote() }) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(.yellow)
+                            .font(.system(size: 20))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             
             ScrollView {
@@ -1074,12 +1083,22 @@ struct IslandView: View {
                 Text("NOTAS RÁPIDAS")
                     .font(.system(size: 9, weight: .black))
                     .opacity(0.4)
+                
                 Spacer()
-                Button(action: { state.addNote() }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 10, weight: .bold))
+                
+                HStack(spacing: 12) {
+                    Button(action: { state.openNotesApp() }) {
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: { state.addNote() }) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             
             VStack(spacing: 8) {
