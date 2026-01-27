@@ -26,8 +26,8 @@ class BatteryObserver {
                     IslandState.shared.batteryLevel = capacity
                     IslandState.shared.isCharging = isCharging
                     
-                    // Show battery island briefly if it starts charging or level is low
-                    if isCharging {
+                    // Show battery island only if it's charging
+                    if isCharging && !IslandState.shared.isCharging {
                         IslandState.shared.setMode(.battery)
                     }
                 }

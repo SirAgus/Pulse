@@ -132,12 +132,26 @@ struct IslandView: View {
                     
                     VStack(spacing: 8) {
                         if selected == "Wsp" {
-                            ForEach(state.lastWhatsAppMessages, id: \.self) { msg in
-                                MessageRow(icon: "message.fill", color: .green, text: msg)
+                            if state.lastWhatsAppMessages.isEmpty {
+                                Text("No hay mensajes nuevos")
+                                    .font(.system(size: 11, design: .rounded))
+                                    .opacity(0.4)
+                                    .padding(.vertical, 10)
+                            } else {
+                                ForEach(state.lastWhatsAppMessages, id: \.self) { msg in
+                                    MessageRow(icon: "message.fill", color: .green, text: msg)
+                                }
                             }
                         } else if selected == "Slack" {
-                            ForEach(state.lastSlackMessages, id: \.self) { msg in
-                                MessageRow(icon: "bubbles.and.sparkles.fill", color: .purple, text: msg)
+                            if state.lastSlackMessages.isEmpty {
+                                Text("No hay notificaciones")
+                                    .font(.system(size: 11, design: .rounded))
+                                    .opacity(0.4)
+                                    .padding(.vertical, 10)
+                            } else {
+                                ForEach(state.lastSlackMessages, id: \.self) { msg in
+                                    MessageRow(icon: "bubbles.and.sparkles.fill", color: .purple, text: msg)
+                                }
                             }
                         } else if selected == "Spotify" {
                             if state.isPlaying {
@@ -145,11 +159,6 @@ struct IslandView: View {
                             } else {
                                 MessageRow(icon: "play.circle.fill", color: .green, text: "No se está reproduciendo nada")
                             }
-                        } else {
-                            Text("No hay actividad reciente")
-                                .font(.system(size: 12, design: .rounded))
-                                .opacity(0.4)
-                                .padding()
                         }
                     }
                 }
