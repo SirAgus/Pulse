@@ -257,37 +257,63 @@ struct IslandView: View {
             }
             
             ScrollView {
-                VStack(spacing: 10) {
-                    ForEach(0..<state.notes.count, id: \.self) { index in
-                        HStack {
-                            if state.editingNoteIndex == index {
-                                TextField("Contenido...", text: Binding(
-                                    get: { state.notes[index] },
-                                    set: { state.notes[index] = $0 }
-                                ), onCommit: {
-                                    state.editingNoteIndex = nil
-                                })
-                                .textFieldStyle(.plain)
-                                .font(.system(size: 13))
-                            } else {
-                                Text(state.notes[index])
-                                    .font(.system(size: 13, weight: .medium))
-                                    .onTapGesture { state.editingNoteIndex = index }
-                                
-                                Spacer()
-                                
-                                Button(action: { state.deleteNote(at: index) }) {
-                                    Image(systemName: "trash")
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.red.opacity(0.6))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(12)
-                        .background(Color.white.opacity(0.05))
-                        .cornerRadius(12)
+                if state.isSyncingNotes && state.notes.isEmpty {
+                    VStack {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("Sincronizando con iCloud...")
+                            .font(.system(size: 10))
+                            .opacity(0.4)
                     }
+                    .padding(.top, 40)
+                } else {
+                    VStack(spacing: 12) {
+                        ForEach(0..<state.notes.count, id: \.self) { index in
+                            HStack {
+                                if state.editingNoteIndex == index {
+                                    TextField("Escribe aquí...", text: Binding(
+                                        get: { state.notes[safe: index]?.content ?? "" },
+                                        set: { state.notes[index].content = $0 }
+                                    ), onCommit: {
+                                        state.saveNote(at: index, newContent: state.notes[index].content)
+                                        state.editingNoteIndex = nil
+                                    })
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.yellow)
+                                } else {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(state.notes[index].content)
+                                            .font(.system(size: 14, weight: .bold))
+                                            .foregroundColor(.white)
+                                        
+                                        Text("Nota de Sistema")
+                                            .font(.system(size: 10))
+                                            .opacity(0.4)
+                                    }
+                                    .onTapGesture { state.editingNoteIndex = index }
+                                    
+                                    Spacer()
+                                    
+                                    Button(action: { state.deleteNote(at: index) }) {
+                                        Image(systemName: "trash.fill")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.red.opacity(0.8))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding()
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(16)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(state.editingNoteIndex == index ? Color.yellow.opacity(0.3) : Color.clear, lineWidth: 2)
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 25)
+                    .padding(.bottom, 20)
                 }
             }
         }
@@ -299,16 +325,22 @@ struct IslandView: View {
             dashboardStatusBar
             dashboardCategorySelector
             
-            // App Content Area
+            // Content Area based on Category
             VStack(spacing: 0) {
                 Divider().background(Color.white.opacity(0.1))
-                dashboardAppGrid
                 
-                if state.selectedApp != nil {
-                    dashboardContextualWidgets
+                if state.activeCategory == "Dispositivos" {
+                    dashboardDevicesGrid
+                } else {
+                    dashboardAppGrid
+                    
+                    if state.selectedApp != nil {
+                        dashboardContextualWidgets
+                    }
                 }
             }
             .animation(.spring(), value: state.selectedApp)
+            .animation(.spring(), value: state.activeCategory)
             
             Spacer(minLength: 20)
             
@@ -366,6 +398,127 @@ struct IslandView: View {
             .padding(25)
         }
         .frame(maxHeight: 280) // Limit height but allow it to be smaller
+    }
+
+    var dashboardDevicesGrid: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                // Main Computer info
+                deviceRow(
+                    name: "MacBook Pro",
+                    detail: "Sistema macOS",
+                    icon: "laptopcomputer",
+                    battery: state.batteryLevel,
+                    isCharging: state.isCharging
+                )
+                
+                // Headphones info
+                if let name = state.headphoneName, let battery = state.headphoneBattery {
+                    deviceRow(
+                        name: name,
+                        detail: "Audífonos Conectados",
+                        icon: "airpodspro",
+                        battery: battery,
+                        isCharging: false
+                    )
+                } else {
+                    HStack {
+                        Image(systemName: "headphones.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundColor(.white.opacity(0.2))
+                        VStack(alignment: .leading) {
+                            Text("Sin Audífonos")
+                                .font(.system(size: 14, weight: .bold))
+                            Text("No se detectan dispositivos BT")
+                                .font(.system(size: 12))
+                                .opacity(0.4)
+                        }
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Color.white.opacity(0.03))
+                    .cornerRadius(18)
+                }
+                
+                // WiFi Info
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.1))
+                            .frame(width: 44, height: 44)
+                        Image(systemName: "wifi")
+                            .foregroundColor(.blue)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(state.wifiSSID)
+                            .font(.system(size: 14, weight: .bold))
+                        Text("Red Wi-Fi Actual")
+                            .font(.system(size: 12))
+                            .opacity(0.4)
+                    }
+                    Spacer()
+                    Text("Conectado")
+                        .font(.system(size: 10, weight: .black))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.green.opacity(0.2))
+                        .foregroundColor(.green)
+                        .cornerRadius(8)
+                }
+                .padding()
+                .background(Color.white.opacity(0.03))
+                .cornerRadius(18)
+            }
+            .padding(25)
+        }
+        .frame(maxHeight: 280)
+    }
+
+    func deviceRow(name: String, detail: String, icon: String, battery: Int, isCharging: Bool) -> some View {
+        HStack(spacing: 15) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.white.opacity(0.05))
+                    .frame(width: 48, height: 48)
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(state.accentColor)
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .font(.system(size: 14, weight: .bold))
+                Text(detail)
+                    .font(.system(size: 11))
+                    .opacity(0.5)
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 8) {
+                if isCharging {
+                    Image(systemName: "bolt.fill")
+                        .foregroundColor(.green)
+                        .font(.system(size: 10))
+                }
+                
+                Text("\(battery)%")
+                    .font(.system(size: 14, weight: .black, design: .rounded))
+                
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.1))
+                        .frame(width: 35, height: 16)
+                    Capsule()
+                        .fill(battery < 20 ? Color.red : (isCharging ? Color.green : Color.white))
+                        .frame(width: CGFloat(battery) * 0.35, height: 16)
+                }
+            }
+        }
+        .padding()
+        .background(Color.white.opacity(0.05))
+        .cornerRadius(18)
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.05), lineWidth: 1))
     }
 
     var dashboardContextualWidgets: some View {
@@ -858,20 +1011,24 @@ struct IslandView: View {
             }
             
             VStack(spacing: 8) {
-                ForEach(state.notes.prefix(2).indices, id: \.self) { i in
-                    Text(state.notes[i])
-                        .font(.system(size: 12, weight: .medium))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
-                        .background(Color.white.opacity(0.04))
-                        .cornerRadius(8)
-                        .lineLimit(1)
-                }
-                
-                if state.notes.count > 2 {
-                    Text("+ \(state.notes.count - 2) más...")
-                        .font(.system(size: 10))
-                        .opacity(0.4)
+                if state.notes.isEmpty && state.isSyncingNotes {
+                    ProgressView().scaleEffect(0.6)
+                } else {
+                    ForEach(state.notes.prefix(2).indices, id: \.self) { i in
+                        Text(state.notes[safe: i]?.content ?? "...")
+                            .font(.system(size: 12, weight: .medium))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8)
+                            .background(Color.white.opacity(0.04))
+                            .cornerRadius(8)
+                            .lineLimit(1)
+                    }
+                    
+                    if state.notes.count > 2 {
+                        Text("+ \(state.notes.count - 2) más...")
+                            .font(.system(size: 10))
+                            .opacity(0.4)
+                    }
                 }
             }
         }
@@ -1102,5 +1259,11 @@ struct EdgeBorder: Shape {
             path.addRect(CGRect(x: x, y: y, width: w, height: h))
         }
         return path
+    }
+}
+
+extension Collection {
+    subscript(safe index: Index) -> Element? {
+        return indices.contains(index) ? self[index] : nil
     }
 }

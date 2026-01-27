@@ -3,6 +3,11 @@ import AppKit
 import Combine
 import CoreWLAN
 
+struct NoteItem: Identifiable, Equatable {
+    let id: String
+    var content: String
+}
+
 enum IslandMode {
     case idle
     case compact
@@ -85,7 +90,7 @@ class IslandState: ObservableObject {
             selectedApp = nil
         }
     }
-    let categories = ["Favoritos", "Recientes", "Utilidades"]
+    let categories = ["Favoritos", "Recientes", "Dispositivos", "Utilidades"]
     
     
     // Timer State
@@ -95,8 +100,9 @@ class IslandState: ObservableObject {
     @Published var customTimerMinutes: Double = 5
     
     // Notes
-    @Published var notes: [String] = ["Recordatorio: Comprar café...", "Llamar a mamá", "Idea: App de Dynamic Island"]
+    @Published var notes: [NoteItem] = []
     @Published var editingNoteIndex: Int? = nil
+    @Published var isSyncingNotes: Bool = false
     
     // Wi-Fi
     @Published var wifiSSID: String = "Wi-Fi"
@@ -147,6 +153,7 @@ class IslandState: ObservableObject {
         
         refreshHeadphoneStatus()
         refreshWiFiStatus()
+        refreshNotes()
     }
     
     func refreshWiFiStatus() {
@@ -184,18 +191,59 @@ class IslandState: ObservableObject {
         isTimerRunning = false
     }
     
-    // Notes Management
+    // Notes Management (Native Sync)
+    func refreshNotes() {
+        isSyncingNotes = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            // Get IDs and names separately as AppleScript struggles with complex objects
+            let idsScript = "tell application \"Notes\" to get id of every note"
+            let namesScript = "tell application \"Notes\" to get name of every note"
+            
+            let idsRaw = self.executeAppleScript(idsScript) ?? ""
+            let namesRaw = self.executeAppleScript(namesScript) ?? ""
+            
+            let ids = idsRaw.components(separatedBy: ", ").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            let names = namesRaw.components(separatedBy: ", ").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            
+            var collected: [NoteItem] = []
+            for i in 0..<min(ids.count, names.count) {
+                if !ids[i].isEmpty {
+                    collected.append(NoteItem(id: ids[i], content: names[i]))
+                }
+            }
+            
+            DispatchQueue.main.async {
+                self.notes = collected
+                self.isSyncingNotes = false
+            }
+        }
+    }
+    
     func addNote() {
-        notes.insert("Nueva nota...", at: 0)
-        editingNoteIndex = 0
+        let script = "tell application \"Notes\" to make new note with properties {body:\"Nueva Nota de Dynamic Island\"}"
+        executeAppleScript(script)
+        refreshNotes()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            self.editingNoteIndex = 0
+        }
     }
     
     func deleteNote(at index: Int) {
         guard notes.indices.contains(index) else { return }
-        notes.remove(at: index)
-        if editingNoteIndex == index {
-            editingNoteIndex = nil
-        }
+        let noteID = notes[index].id
+        let script = "tell application \"Notes\" to delete note id \"\(noteID)\""
+        executeAppleScript(script)
+        refreshNotes()
+    }
+
+    func saveNote(at index: Int, newContent: String) {
+        guard notes.indices.contains(index) else { return }
+        let noteID = notes[index].id
+        // Replace quotes to avoid script errors
+        let safeContent = newContent.replacingOccurrences(of: "\"", with: "\\\"")
+        let script = "tell application \"Notes\" to set body of note id \"\(noteID)\" to \"<div>\(safeContent)</div>\""
+        executeAppleScript(script)
+        refreshNotes()
     }
 
     func showNotification(_ text: String) {
