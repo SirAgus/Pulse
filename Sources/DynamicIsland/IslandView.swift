@@ -694,18 +694,22 @@ struct IslandView: View {
                 .lineLimit(1)
                 .frame(maxWidth: 70)
             
-            HStack(alignment: .bottom, spacing: 2) {
-                ForEach(0..<4) { i in
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(Color.white.opacity(i < 3 ? 0.9 : 0.3))
-                        .frame(width: 2.5, height: CGFloat((i + 1) * 2.5))
-                }
-            }
+            wifiSignalIndicator
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .background(Color.white.opacity(0.08))
         .cornerRadius(12)
+    }
+
+    var wifiSignalIndicator: some View {
+        HStack(alignment: .bottom, spacing: 2) {
+            ForEach(0..<4) { i in
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(Color.white.opacity(i < 3 ? 0.9 : 0.3))
+                    .frame(width: 2.5, height: CGFloat((i + 1) * 2.5))
+            }
+        }
     }
 
     var dashboardCategorySelector: some View {
