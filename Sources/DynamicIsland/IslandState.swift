@@ -70,7 +70,6 @@ class IslandState: ObservableObject {
     func setMode(_ newMode: IslandMode, autoCollapse: Bool = true) {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0)) {
             mode = newMode
-            // For modes like volume/battery, we might want them expanded initially
             if newMode == .battery {
                 isExpanded = true
             }
@@ -80,6 +79,24 @@ class IslandState: ObservableObject {
             startCollapseTimer()
         }
     }
+    
+    func musicControl(_ command: String) {
+        // Support both Spotify and Music
+        let appleMusicScript = "tell application \"Music\" to \(command)"
+        let spotifyScript = "tell application \"Spotify\" to \(command)"
+        
+        executeAppleScript(appleMusicScript)
+        executeAppleScript(spotifyScript)
+        
+        // Refresh state immediately after control
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            MusicObserver.shared.refresh()
+        }
+    }
+    
+    func playPause() { musicControl("playpause") }
+    func nextTrack() { musicControl("next track") }
+    func previousTrack() { musicControl("previous track") }
 
     func startCollapseTimer() {
         cancelCollapseTimer()
@@ -147,6 +164,15 @@ class IslandState: ObservableObject {
             }
         }
         return nil
+    }
+    }
+    
+    func showDashboard() {
+        setMode(.compact, autoCollapse: false)
+    }
+    
+    func showMusic() {
+        setMode(.music, autoCollapse: false)
     }
     
     private func launchApp(named: String) {

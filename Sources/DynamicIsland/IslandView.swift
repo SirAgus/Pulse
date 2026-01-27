@@ -166,25 +166,52 @@ struct IslandView: View {
             }
         }
         .padding(25)
+        .overlay(alignment: .bottomTrailing) {
+            if state.isPlaying {
+                Button(action: { state.showMusic() }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "waveform")
+                            .font(.system(size: 8, weight: .bold))
+                        Text(state.songTitle)
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.orange.opacity(0.15))
+                    .foregroundColor(.orange)
+                    .cornerRadius(20)
+                }
+                .buttonStyle(.plain)
+                .padding(15)
+            }
+        }
     }
 
     var expandedMusicContent: some View {
         VStack(spacing: 18) {
             HStack(spacing: 15) {
+                Button(action: { state.showDashboard() }) {
+                    Image(systemName: "chevron.left.circle.fill")
+                        .font(.system(size: 22))
+                        .opacity(0.3)
+                }
+                .buttonStyle(.plain)
+                
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(LinearGradient(colors: [Color(hex: "FF8A00"), Color(hex: "FF0000")], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .frame(width: 60, height: 60)
+                    .frame(width: 50, height: 50)
                     .overlay(
                         Image(systemName: "music.note")
                             .foregroundColor(.white)
-                            .font(.system(size: 24))
+                            .font(.system(size: 20))
                     )
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(state.songTitle)
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
                     Text(state.artistName)
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
                         .opacity(0.6)
                 }
                 
@@ -221,13 +248,24 @@ struct IslandView: View {
                 
                 Spacer()
                 
-                HStack(spacing: 30) {
-                    Image(systemName: "backward.fill")
-                        .font(.system(size: 18))
-                    Image(systemName: "pause.fill")
-                        .font(.system(size: 26))
-                    Image(systemName: "forward.fill")
-                        .font(.system(size: 18))
+                HStack(spacing: 35) {
+                    Button(action: { state.previousTrack() }) {
+                        Image(systemName: "backward.fill")
+                            .font(.system(size: 18))
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: { state.playPause() }) {
+                        Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 28))
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: { state.nextTrack() }) {
+                        Image(systemName: "forward.fill")
+                            .font(.system(size: 18))
+                    }
+                    .buttonStyle(.plain)
                 }
                 
                 Spacer()
