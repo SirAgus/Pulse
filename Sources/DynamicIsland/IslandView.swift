@@ -349,7 +349,7 @@ struct IslandView: View {
                         }) {
                             VStack(spacing: 8) {
                                 Text(cat.uppercased())
-                                    .font(.system(size: 10, weight: activeCategory == cat ? .black : .bold, design: .rounded))
+                                    .font(.system(size: 10, weight: state.activeCategory == cat ? .black : .bold, design: .rounded))
                                     .tracking(1.5)
                                     .foregroundColor(state.activeCategory == cat ? .white : .white.opacity(0.3))
                                     .frame(maxWidth: .infinity)
