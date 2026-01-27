@@ -43,6 +43,12 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<EOF
     <string>14.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSCalendarUsageDescription</key>
+    <string>Necesitamos acceso al calendario para mostrar tu próximo evento.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Necesitamos ejecutar scripts para controlar el volumen y la música.</string>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Necesitamos acceso a Bluetooth para listar tus dispositivos.</string>
 </dict>
 </plist>
 EOF

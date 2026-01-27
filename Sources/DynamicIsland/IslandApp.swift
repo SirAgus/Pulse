@@ -88,7 +88,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Use a fixed large initial size to avoid clipping or offset issues
         let window = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 800, height: 200),
-            styleMask: [.nonactivatingPanel, .fullSizeContentView],
+            styleMask: [.nonactivatingPanel, .fullSizeContentView, .hudWindow],
             backing: .buffered,
             defer: false
         )
@@ -106,7 +106,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         self.window = window
         recenterWindow()
-        window.orderFront(nil)
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
         
         // Listen for state changes to resize the window snugly
         IslandState.shared.objectWillChange.sink { [weak self] in
@@ -124,22 +125,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 
     func recenterWindow() {
-        guard let window = window, let screen = NSScreen.main else { return }
+        guard let window = window else { return }
+        let screen = NSScreen.main ?? NSScreen.screens.first
+        guard let targetScreen = screen else { 
+            print("❌ No screen found!")
+            return 
+        }
         
-        let screenFrame = screen.frame
+        let screenFrame = targetScreen.frame
         let state = IslandState.shared
         
         let width = state.widthForMode(state.mode, isExpanded: state.isExpanded)
         let height = state.heightForMode(state.mode, isExpanded: state.isExpanded)
         
-        // Final pixel-perfect centering math
-        // We use the EXACT size of the island for the window to avoid blocking clicks
         let actualWidth = width
         let actualHeight = height
         
         let x = screenFrame.origin.x + (screenFrame.width - actualWidth) / 2
-        
-        // Position below notch (usually 35-40px from top)
         let topMargin: CGFloat = 35
         let y = screenFrame.maxY - actualHeight - topMargin
         

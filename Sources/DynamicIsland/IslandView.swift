@@ -63,7 +63,7 @@ struct IslandView: View {
             case .idle:
                 EmptyView()
             case .compact:
-                if state.isExpanded {
+              if state.isExpanded {
                     expandedDashboardContent
                 } else {
                     compactContent
@@ -409,20 +409,22 @@ struct IslandView: View {
             VStack(spacing: 0) {
                 Divider().background(Color.white.opacity(0.1))
                 
-                if state.activeCategory == "Dispositivos" {
-                    dashboardDevicesGrid
-                } else if state.activeCategory == "Configuración" {
-                    ScrollView {
-                        settingsWidget
-                            .padding(.top, 20)
-                            .padding(.horizontal, 25)
+                ScrollView(showsIndicators: false) { // This ScrollView now wraps both app grid and contextual widgets
+                    VStack(spacing: 30) { // Even more spacing
+                        if state.activeCategory == "Dispositivos" {
+                            dashboardDevicesGrid
+                        } else if state.activeCategory == "Configuración" {
+                            settingsWidget
+                                .padding(.horizontal, 25)
+                        } else {
+                            dashboardAppGridContent
+                            
+                            if state.selectedApp != nil {
+                                dashboardContextualWidgets
+                            }
+                        }
                     }
-                } else {
-                    dashboardAppGrid
-                    
-                    if state.selectedApp != nil {
-                        dashboardContextualWidgets
-                    }
+                    .padding(.vertical, 20)
                 }
             }
             .animation(.spring(), value: state.selectedApp)
@@ -1041,10 +1043,17 @@ struct IslandView: View {
                             .frame(height: 24)
                         
                         // Small dot indicator instead of underline for icons
-                        Circle()
-                            .fill(state.activeCategory == cat ? state.accentColor : Color.clear)
-                            .frame(width: 4, height: 4)
-                            .matchedGeometryEffect(id: "tab", in: animation)
+                        ZStack {
+                            if state.activeCategory == cat {
+                                Circle()
+                                    .fill(state.accentColor)
+                                    .matchedGeometryEffect(id: "tab", in: animation)
+                            } else {
+                                Circle()
+                                    .fill(Color.clear)
+                            }
+                        }
+                        .frame(width: 4, height: 4)
                     }
                     .frame(maxWidth: .infinity)
                 }

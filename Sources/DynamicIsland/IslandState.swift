@@ -499,8 +499,13 @@ class IslandState: ObservableObject {
             isExpanded = true
             return
         }
-        if ["Meeting", "Clipboard", "Weather", "Calendar", "Pomodoro"].contains(named) {
+        if ["Meeting", "Clipboard", "Weather", "Calendar", "Pomodoro", "Settings"].contains(named) {
             selectedApp = named
+            // Correct the active category to match the app being opened
+            if named == "Settings" { activeCategory = "Configuración" }
+            else if ["Meeting", "Clipboard", "Pomodoro", "Calendar"].contains(named) { activeCategory = "Favoritos" }
+            else if named == "Weather" { activeCategory = "Utilidades" }
+            
             setMode(.compact)
             isExpanded = true
             return
@@ -848,12 +853,12 @@ class IslandState: ObservableObject {
     func widthForMode(_ mode: IslandMode, isExpanded: Bool) -> CGFloat {
         if isExpanded {
             switch mode {
-            case .compact: return 420
-            case .music: return 380
-            case .timer: return 320
-            case .notes: return 350
-            case .productivity: return 420
-            default: return 300
+            case .compact: return 450
+            case .music: return 400
+            case .timer: return 350
+            case .notes: return 380
+            case .productivity: return 450
+            default: return 320
             }
         } else {
             switch mode {
@@ -872,13 +877,13 @@ class IslandState: ObservableObject {
     func heightForMode(_ mode: IslandMode, isExpanded: Bool) -> CGFloat {
         if isExpanded {
             switch mode {
-            case .compact: return 480 
+            case .compact: return 600
             case .music: return 220
             case .battery: return 70
             case .volume: return 60
             case .timer: return 180
             case .notes: return 450
-            case .productivity: return 480
+            case .productivity: return 600
             default: return 160
             }
         } else {
