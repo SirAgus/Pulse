@@ -35,9 +35,16 @@ class MusicObserver {
             IslandState.shared.artistName = artist
             IslandState.shared.isPlaying = (playbackState == "Playing" || playbackState == "playing")
             
-            if IslandState.shared.isPlaying {
-                IslandState.shared.setMode(.music)
+            // Detect player
+            if notification.name.rawValue.contains("Music") {
+                IslandState.shared.currentPlayer = "Music"
+            } else if notification.name.rawValue.contains("spotify") {
+                IslandState.shared.currentPlayer = "Spotify"
             }
         }
+    }
+    
+    func refresh() {
+        // Force refresh if needed
     }
 }

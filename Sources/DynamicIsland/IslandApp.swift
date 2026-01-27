@@ -66,6 +66,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+
     func recenterWindow() {
         guard let window = window, let screen = NSScreen.main else { return }
         

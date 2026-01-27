@@ -32,6 +32,7 @@ class IslandState: ObservableObject {
     @Published var songTitle: String = ""
     @Published var artistName: String = ""
     @Published var isPlaying: Bool = false
+    @Published var currentPlayer: String = "Spotify"
     
     // Battery State
     @Published var batteryLevel: Int = 100
@@ -53,6 +54,7 @@ class IslandState: ObservableObject {
 
     init() {
         startMockUpdates()
+        refreshVolume()
     }
     
     func toggleExpand() {
@@ -81,22 +83,40 @@ class IslandState: ObservableObject {
     }
     
     func musicControl(_ command: String) {
-        // Support both Spotify and Music
         let appleMusicScript = "tell application \"Music\" to \(command)"
         let spotifyScript = "tell application \"Spotify\" to \(command)"
         
         executeAppleScript(appleMusicScript)
         executeAppleScript(spotifyScript)
-        
-        // Refresh state immediately after control
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            MusicObserver.shared.refresh()
-        }
     }
     
     func playPause() { musicControl("playpause") }
     func nextTrack() { musicControl("next track") }
     func previousTrack() { musicControl("previous track") }
+    
+    func openAirPlay() {
+        // Toggle the system AirPlay/Sound picker
+        let script = "tell application \"System Events\" to key code 28 using {control down, command down}" 
+        executeAppleScript(script)
+    }
+    
+    func adjustVolume(by delta: Int) {
+        let script = "set volume output volume ((output volume of (get volume settings)) + \(delta))"
+        executeAppleScript(script)
+        // Give macOS a tiny moment to update settings
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            self.refreshVolume()
+        }
+    }
+    
+    func refreshVolume() {
+        let script = "output volume of (get volume settings)"
+        if let volStr = executeAppleScript(script), let volInt = Int(volStr) {
+            DispatchQueue.main.async {
+                self.volume = Double(volInt) / 100.0
+            }
+        }
+    }
 
     func startCollapseTimer() {
         cancelCollapseTimer()
@@ -165,7 +185,6 @@ class IslandState: ObservableObject {
         }
         return nil
     }
-    }
     
     func showDashboard() {
         setMode(.compact, autoCollapse: false)
@@ -221,15 +240,15 @@ class IslandState: ObservableObject {
     func heightForMode(_ mode: IslandMode, isExpanded: Bool) -> CGFloat {
         if isExpanded {
             switch mode {
-            case .compact: return 220 // Taller for messages
-            case .music: return 190
+            case .compact: return 220 
+            case .music: return 180 // Snugger
             case .battery: return 70
             case .volume: return 60
             default: return 160
             }
         } else {
             switch mode {
-            case .idle: return 5
+            case .idle: return 1 // Minimal to not block tabs
             default: return 30
             }
         }

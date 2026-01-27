@@ -198,14 +198,21 @@ struct IslandView: View {
                 }
                 .buttonStyle(.plain)
                 
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(LinearGradient(colors: [Color(hex: "FF8A00"), Color(hex: "FF0000")], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .frame(width: 50, height: 50)
-                    .overlay(
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(LinearGradient(colors: [Color(hex: "FF8A00"), Color(hex: "FF0000")], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 50, height: 50)
+                    
+                    if let icon = getAppIcon(for: state.currentPlayer) {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .frame(width: 32, height: 32)
+                    } else {
                         Image(systemName: "music.note")
                             .foregroundColor(.white)
                             .font(.system(size: 20))
-                    )
+                    }
+                }
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(state.songTitle)
@@ -222,29 +229,23 @@ struct IslandView: View {
                     .font(.system(size: 18, weight: .bold))
             }
             
-            VStack(spacing: 6) {
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.15))
-                        .frame(height: 5)
-                    Capsule()
-                        .fill(Color.white)
-                        .frame(width: 120, height: 5)
+            if state.isPlaying {
+                HStack(spacing: 3) {
+                    ForEach(0..<4) { i in
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(Color.orange)
+                            .frame(width: 2, height: CGFloat.random(in: 4...12))
+                    }
                 }
-                
-                HStack {
-                    Text("1:20")
-                    Spacer()
-                    Text("-2:45")
-                }
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .opacity(0.4)
             }
             
             HStack {
-                Image(systemName: "speaker.wave.2.fill")
-                    .font(.system(size: 12))
-                    .opacity(0.4)
+                Button(action: { state.adjustVolume(by: -10) }) {
+                    Image(systemName: "speaker.wave.1.fill")
+                        .font(.system(size: 12))
+                        .opacity(0.4)
+                }
+                .buttonStyle(.plain)
                 
                 Spacer()
                 
@@ -270,13 +271,31 @@ struct IslandView: View {
                 
                 Spacer()
                 
-                Image(systemName: "airplayaudio")
-                    .font(.system(size: 12))
-                    .opacity(0.4)
+                Button(action: { state.openAirPlay() }) {
+                    Image(systemName: "airplayaudio")
+                        .font(.system(size: 12))
+                        .opacity(0.4)
+                }
+                .buttonStyle(.plain)
+                
+                Button(action: { state.adjustVolume(by: 10) }) {
+                    Image(systemName: "speaker.wave.3.fill")
+                        .font(.system(size: 12))
+                        .opacity(0.4)
+                }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, 5)
         }
         .padding(22)
+    }
+    
+    func getAppIcon(for appName: String) -> NSImage? {
+        let path = "/Applications/\(appName).app"
+        if FileManager.default.fileExists(atPath: path) {
+            return NSWorkspace.shared.icon(forFile: path)
+        }
+        return nil
     }
     
     var batteryContent: some View {
