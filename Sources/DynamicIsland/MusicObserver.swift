@@ -98,6 +98,7 @@ class MusicObserver {
             IslandState.shared.artistName = artist
             IslandState.shared.isPlaying = true
             IslandState.shared.currentPlayer = appName
+            IslandState.shared.setMode(.music)
             self.updateDurations(for: appName)
         }
     }
