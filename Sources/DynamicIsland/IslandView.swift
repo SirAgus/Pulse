@@ -8,17 +8,20 @@ struct IslandView: View {
     var body: some View {
         ZStack {
             // Main Island Background with Tap Gesture
+            // We use a button-like interaction for the background to correctly handle layering
             RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 4 : 15), style: .continuous)
                 .fill(state.islandColor)
+                .contentShape(Rectangle())
                 .onTapGesture {
                     state.toggleExpand()
                 }
+                .zIndex(0)
             
             // Content Layer (Buttons, text, etc)
             contentForMode(state.mode)
                 .opacity(state.mode == .idle ? 0 : 1)
-                // This ensures content catches its own clicks
                 .allowsHitTesting(true)
+                .zIndex(1)
         }
         .frame(
             width: state.widthForMode(state.mode, isExpanded: state.isExpanded),
@@ -671,6 +674,14 @@ struct IslandView: View {
             
             Spacer()
             
+            if state.showClock {
+                Text(Date(), style: .time)
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .opacity(0.8)
+            }
+            
+            Spacer()
+            
             HStack(spacing: 8) {
                 Text(state.wifiSSID)
                     .font(.system(size: 10, weight: .black))
@@ -874,11 +885,16 @@ struct IslandView: View {
                     Spacer()
                     HStack(spacing: 8) {
                         ForEach([Color.black, Color(hex: "1a1a1a"), Color(hex: "001a33"), Color(hex: "1a0033")], id: \.self) { color in
-                            Circle()
-                                .fill(color)
-                                .frame(width: 20, height: 20)
-                                .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
-                                .onTapGesture { state.islandColor = color }
+                            Button(action: { state.islandColor = color }) {
+                                Circle()
+                                    .fill(color)
+                                    .frame(width: 20, height: 20)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(state.islandColor == color ? Color.white : Color.white.opacity(0.2), lineWidth: state.islandColor == color ? 2 : 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -890,10 +906,16 @@ struct IslandView: View {
                     Spacer()
                     HStack(spacing: 8) {
                         ForEach([Color.orange, Color.green, Color.blue, Color.purple], id: \.self) { color in
-                            Circle()
-                                .fill(color)
-                                .frame(width: 20, height: 20)
-                                .onTapGesture { state.accentColor = color }
+                            Button(action: { state.accentColor = color }) {
+                                Circle()
+                                    .fill(color)
+                                    .frame(width: 20, height: 20)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(state.accentColor == color ? Color.white : Color.clear, lineWidth: 2)
+                                    )
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }

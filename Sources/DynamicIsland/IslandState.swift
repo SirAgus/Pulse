@@ -79,18 +79,14 @@ class IslandState: ObservableObject {
     
     @Published var wspBadge: String = ""
     @Published var slackBadge: String = ""
-    
     // Categories and App State
     @Published var activeCategory: String = "Favoritos" {
         didSet {
-            // Clear selection when switching tabs for a cleaner feel
             selectedApp = nil
         }
     }
     let categories = ["Favoritos", "Recientes", "Utilidades"]
     
-    // Visualizer Bars
-    @Published var bars: [CGFloat] = [10, 22, 12, 28, 18]
     
     // Timer State
     @Published var timerRemaining: TimeInterval = 0
