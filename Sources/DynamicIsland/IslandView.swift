@@ -77,28 +77,90 @@ struct IslandView: View {
     }
     
     var compactMusicContent: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "waveform")
-                .foregroundColor(.orange)
-                .font(.system(size: 10, weight: .bold))
-            Text(state.songTitle)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .lineLimit(1)
-            Spacer()
-            Circle()
-                .fill(Color.orange.opacity(0.2))
-                .frame(width: 18, height: 18)
-                .overlay(
+        HStack(spacing: 12) {
+            // Artwork / App Icon on the left
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(LinearGradient(colors: [Color.orange.opacity(0.3), Color.red.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 24, height: 24)
+                
+                if let icon = getAppIcon(for: state.currentPlayer) {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                } else {
                     Image(systemName: "music.note")
-                        .font(.system(size: 9))
-                        .foregroundColor(.orange)
-                )
+                        .font(.system(size: 11))
+                        .foregroundColor(.white)
+                }
+            }
+            .shadow(color: .black.opacity(0.3), radius: 2)
+            
+            // Song Title in the middle
+            Text(state.songTitle)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+            
+            // Waveform / Headphone Battery on the right
+            HStack(spacing: 6) {
+                if let battery = state.headphoneBattery {
+                    HStack(spacing: 3) {
+                        Image(systemName: "airpodspro")
+                            .font(.system(size: 10))
+                        Text("\(battery)%")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .foregroundColor(.blue)
+                    .padding(.trailing, 4)
+                }
+                
+                HStack(alignment: .center, spacing: 2) {
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(Color.orange)
+                        .frame(width: 2, height: state.isPlaying ? 8 : 4)
+                        .offset(y: state.isPlaying ? -1 : 0)
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(Color.orange)
+                        .frame(width: 2, height: state.isPlaying ? 14 : 4)
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(Color.orange)
+                        .frame(width: 2, height: state.isPlaying ? 10 : 4)
+                        .offset(y: state.isPlaying ? 1 : 0)
+                }
+                .animation(.easeInOut(duration: 0.4).repeatForever(), value: state.isPlaying)
+            }
         }
         .padding(.horizontal, 10)
     }
     
     var expandedDashboardContent: some View {
         VStack(spacing: 20) {
+            // System Status Bar
+            HStack {
+                HStack(spacing: 5) {
+                    Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.75")
+                    Text("\(state.batteryLevel)%")
+                }
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundColor(state.batteryLevel < 20 ? .red : (state.isCharging ? .green : .white))
+                
+                Spacer()
+                
+                if let headphoneBatt = state.headphoneBattery {
+                    HStack(spacing: 5) {
+                        Image(systemName: "airpodspro")
+                        Text("\(state.headphoneName ?? "Audífonos"): \(headphoneBatt)%")
+                    }
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundColor(.blue)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 5)
+
             // App Launcher Section
             VStack(alignment: .leading, spacing: 12) {
                 Text("ACCESOS RÁPIDOS")

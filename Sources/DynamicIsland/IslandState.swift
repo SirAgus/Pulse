@@ -46,6 +46,10 @@ class IslandState: ObservableObject {
     @Published var trackPosition: Double = 0
     @Published var trackDuration: Double = 1
     
+    // Headphones State
+    @Published var headphoneName: String? = nil
+    @Published var headphoneBattery: Int? = nil
+    
     // Battery State
     @Published var batteryLevel: Int = 100
     @Published var isCharging: Bool = false
@@ -75,6 +79,13 @@ class IslandState: ObservableObject {
                 self.trackPosition += 1
             }
         }
+        
+        // Timer to refresh headphone status
+        Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+            self?.refreshHeadphoneStatus()
+        }
+        
+        refreshHeadphoneStatus()
     }
     
     func toggleExpand() {
@@ -127,6 +138,10 @@ class IslandState: ObservableObject {
             withAnimation { self.isPlaying.toggle() }
         }
     }
+    
+    func playPause() { musicControl("playpause") }
+    func nextTrack() { musicControl("next track") }
+    func previousTrack() { musicControl("previous track") }
     
     func openAirPlay() {
         // Toggle the system AirPlay/Sound picker
@@ -188,6 +203,8 @@ class IslandState: ObservableObject {
     }
     
     func refreshRealStatus() {
+        refreshHeadphoneStatus()
+        
         // WhatsApp Badge check via AppleScript
         let wspScript = "tell application \"Dock\" to get badge label of UI element \"WhatsApp\" of list 1"
         if let badge = executeAppleScript(wspScript), !badge.isEmpty {
@@ -209,7 +226,7 @@ class IslandState: ObservableObject {
         }
     }
     
-    private func executeAppleScript(_ scriptSource: String) -> String? {
+    func executeAppleScript(_ scriptSource: String) -> String? {
         var error: NSDictionary?
         if let scriptObject = NSAppleScript(source: scriptSource) {
             let output = scriptObject.executeAndReturnError(&error)
@@ -226,6 +243,42 @@ class IslandState: ObservableObject {
     
     func showMusic() {
         setMode(.music, autoCollapse: false)
+    }
+    
+    func refreshHeadphoneStatus() {
+        // Use ioreg to find Bluetooth devices with battery info
+        let task = Process()
+        task.launchPath = "/usr/sbin/ioreg"
+        task.arguments = ["-r", "-k", "BatteryPercent"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.launch()
+        
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        if let output = String(data: data, encoding: .utf8) {
+            // Very simplified regex-like check
+            if output.contains("BatteryPercent") {
+                // Try to find a name near it
+                let lines = output.components(separatedBy: .newlines)
+                for (index, line) in lines.enumerated() {
+                    if line.contains("BatteryPercent") {
+                        if let percent = Int(line.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) {
+                            DispatchQueue.main.async {
+                                self.headphoneBattery = percent
+                                // We'll just call them 'Audífonos' if we can't find a clean name
+                                self.headphoneName = "AirPods" 
+                            }
+                            return
+                        }
+                    }
+                }
+            }
+        }
+        
+        DispatchQueue.main.async {
+            self.headphoneName = nil
+            self.headphoneBattery = nil
+        }
     }
     
     private func launchApp(named: String) {
@@ -288,4 +341,3 @@ class IslandState: ObservableObject {
         }
     }
 }
-```
