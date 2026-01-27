@@ -43,6 +43,8 @@ class IslandState: ObservableObject {
     @Published var artistName: String = ""
     @Published var isPlaying: Bool = false
     @Published var currentPlayer: String = "Spotify"
+    @Published var trackPosition: Double = 0
+    @Published var trackDuration: Double = 1
     
     // Battery State
     @Published var batteryLevel: Int = 100
@@ -65,6 +67,14 @@ class IslandState: ObservableObject {
     init() {
         startMockUpdates()
         refreshVolume()
+        
+        // Timer to increment song progress
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            if self.isPlaying && self.trackPosition < self.trackDuration {
+                self.trackPosition += 1
+            }
+        }
     }
     
     func toggleExpand() {

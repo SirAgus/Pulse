@@ -229,14 +229,35 @@ struct IslandView: View {
                     .font(.system(size: 18, weight: .bold))
             }
             
+            VStack(spacing: 6) {
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.15))
+                        .frame(height: 5)
+                    Capsule()
+                        .fill(Color.white)
+                        .frame(width: max(0, min(300, (300 * (state.trackPosition / max(1, state.trackDuration))))), height: 5)
+                }
+                
+                HStack {
+                    Text(formatTime(state.trackPosition))
+                    Spacer()
+                    Text("-" + formatTime(max(0, state.trackDuration - state.trackPosition)))
+                }
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .opacity(0.4)
+            }
+            .padding(.top, 5)
+            
             if state.isPlaying {
                 HStack(spacing: 3) {
-                    ForEach(0..<4) { i in
+                    ForEach(0..<12) { _ in
                         RoundedRectangle(cornerRadius: 1)
                             .fill(Color.orange)
-                            .frame(width: 2, height: CGFloat.random(in: 4...12))
+                            .frame(width: 3, height: CGFloat.random(in: 4...20))
                     }
                 }
+                .frame(height: 25)
             }
             
             HStack {
@@ -325,6 +346,12 @@ struct IslandView: View {
             .frame(height: 5)
         }
         .padding(.horizontal, 12)
+    }
+    
+    func formatTime(_ seconds: Double) -> String {
+        let mins = Int(seconds) / 60
+        let secs = Int(seconds) % 60
+        return String(format: "%d:%02d", mins, secs)
     }
 }
 

@@ -38,8 +38,29 @@ class MusicObserver {
             // Detect player
             if notification.name.rawValue.contains("Music") {
                 IslandState.shared.currentPlayer = "Music"
+                self.updateDurations(for: "Music")
             } else if notification.name.rawValue.contains("spotify") {
                 IslandState.shared.currentPlayer = "Spotify"
+                self.updateDurations(for: "Spotify")
+            }
+        }
+    }
+    
+    private func updateDurations(for appName: String) {
+        let positionScript = "tell application \"\(appName)\" to get player position"
+        let durationScript = "tell application \"\(appName)\" to get duration of current track"
+        
+        let pos = IslandState.shared.executeAppleScript(positionScript)
+        let dur = IslandState.shared.executeAppleScript(durationScript)
+        
+        DispatchQueue.main.async {
+            if let p = pos, let d = dur, let pd = Double(p), let dd = Double(dur == "ms" ? String(Int(d)!/1000) : d) {
+                // Spotify duration can be in ms or seconds depending on version/script
+                // Typically Spotify AppleScript returns seconds for player position and ms/seconds for duration.
+                // We'll handle both.
+                let finalDur = dd > 10000 ? dd / 1000 : dd
+                IslandState.shared.trackPosition = pd
+                IslandState.shared.trackDuration = finalDur
             }
         }
     }
