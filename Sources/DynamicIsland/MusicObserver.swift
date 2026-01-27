@@ -5,6 +5,8 @@ class MusicObserver {
     static let shared = MusicObserver()
     
     func start() {
+        checkCurrentStatus()
+        
         // Observe iTunes/Music player state changes
         DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("com.apple.Music.playerInfo"),
@@ -62,6 +64,41 @@ class MusicObserver {
                 IslandState.shared.trackPosition = pd
                 IslandState.shared.trackDuration = finalDur
             }
+        }
+    }
+    
+    func checkCurrentStatus() {
+        let apps = NSWorkspace.shared.runningApplications
+        let isSpotifyRunning = apps.contains { $0.bundleIdentifier == "com.spotify.client" }
+        let isMusicRunning = apps.contains { $0.bundleIdentifier == "com.apple.Music" }
+        
+        if isSpotifyRunning {
+            let stateStr = IslandState.shared.executeAppleScript("tell application \"Spotify\" to get player state")
+            if stateStr == "playing" {
+                updateImmediateState(for: "Spotify")
+                return
+            }
+        }
+        
+        if isMusicRunning {
+            let stateStr = IslandState.shared.executeAppleScript("tell application \"Music\" to get player state")
+            if stateStr == "playing" {
+                updateImmediateState(for: "Music")
+                return
+            }
+        }
+    }
+    
+    private func updateImmediateState(for appName: String) {
+        let track = IslandState.shared.executeAppleScript("tell application \"\(appName)\" to get name of current track") ?? "Unknown"
+        let artist = IslandState.shared.executeAppleScript("tell application \"\(appName)\" to get artist of current track") ?? "Unknown"
+        
+        DispatchQueue.main.async {
+            IslandState.shared.songTitle = track
+            IslandState.shared.artistName = artist
+            IslandState.shared.isPlaying = true
+            IslandState.shared.currentPlayer = appName
+            self.updateDurations(for: appName)
         }
     }
     

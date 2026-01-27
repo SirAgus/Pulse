@@ -137,116 +137,243 @@ struct IslandView: View {
     }
     
     var expandedDashboardContent: some View {
-        VStack(spacing: 20) {
-            // System Status Bar
+        VStack(spacing: 0) {
+            // Barra de Estado Superior (React Style)
             HStack {
-                HStack(spacing: 5) {
-                    Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.75")
-                    Text("\(state.batteryLevel)%")
+                HStack(spacing: 8) {
+                    HStack(spacing: 5) {
+                        Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.75")
+                            .foregroundColor(state.isCharging ? .green : .white)
+                        Text("\(state.batteryLevel)%")
+                            .font(.system(size: 11, weight: .black, design: .rounded))
+                            .foregroundColor(state.isCharging ? .green : .white)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.05))
+                    .cornerRadius(20)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(state.isCharging ? Color.green.opacity(0.3) : Color.white.opacity(0.1), lineWidth: 1)
+                    )
+                    
+                    Circle()
+                        .fill(Color.orange)
+                        .frame(width: 8, height: 8)
+                        .shadow(color: .orange.opacity(0.6), radius: 4)
                 }
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundColor(state.batteryLevel < 20 ? .red : (state.isCharging ? .green : .white))
                 
                 Spacer()
                 
-                if let headphoneBatt = state.headphoneBattery {
-                    HStack(spacing: 5) {
-                        Image(systemName: "airpodspro")
-                        Text("\(state.headphoneName ?? "Audífonos"): \(headphoneBatt)%")
-                    }
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundColor(.blue)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.top, 5)
-
-            // App Launcher Section
-            VStack(alignment: .leading, spacing: 12) {
-                Text("ACCESOS RÁPIDOS")
-                    .font(.system(size: 10, weight: .black, design: .rounded))
-                    .opacity(0.4)
-                    .padding(.leading, 5)
-                
-                HStack(spacing: 20) {
-                    AppIcon(name: "Spotify", color: .green, appName: "Spotify", isSelected: state.selectedApp == "Spotify", badge: nil) {
-                        state.openApp(named: "Spotify")
-                    }
-                    AppIcon(name: "Wsp", color: .green, appName: "WhatsApp", isSelected: state.selectedApp == "Wsp", badge: state.wspBadge) {
-                        state.openApp(named: "Wsp")
-                    }
-                    AppIcon(name: "Slack", color: .purple, appName: "Slack", isSelected: state.selectedApp == "Slack", badge: state.slackBadge) {
-                        state.openApp(named: "Slack")
-                    }
-                    AppIcon(name: "Finder", color: .blue, appName: "Finder", isSelected: state.selectedApp == "Finder", badge: nil) {
-                        state.openApp(named: "Finder")
-                    }
-                }
-            }
-            
-            // Contextual Content Section
-            if let selected = state.selectedApp {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(selected == "Spotify" ? "REPRODUCIENDO" : "RECIBIDOS")
-                        .font(.system(size: 10, weight: .black, design: .rounded))
-                        .opacity(0.4)
-                        .padding(.leading, 5)
+                HStack(spacing: 8) {
+                    Text("LTE")
+                        .font(.system(size: 10, weight: .black))
+                        .opacity(0.5)
                     
-                    VStack(spacing: 8) {
-                        if selected == "Wsp" {
-                            if state.lastWhatsAppMessages.isEmpty {
-                                Text("No hay mensajes nuevos")
-                                    .font(.system(size: 11, design: .rounded))
-                                    .opacity(0.4)
-                                    .padding(.vertical, 10)
-                            } else {
-                                ForEach(state.lastWhatsAppMessages, id: \.self) { msg in
-                                    MessageRow(icon: "message.fill", color: .green, text: msg)
-                                }
-                            }
-                        } else if selected == "Slack" {
-                            if state.lastSlackMessages.isEmpty {
-                                Text("No hay notificaciones")
-                                    .font(.system(size: 11, design: .rounded))
-                                    .opacity(0.4)
-                                    .padding(.vertical, 10)
-                            } else {
-                                ForEach(state.lastSlackMessages, id: \.self) { msg in
-                                    MessageRow(icon: "bubbles.and.sparkles.fill", color: .purple, text: msg)
-                                }
-                            }
-                        } else if selected == "Spotify" {
-                            if state.isPlaying {
-                                MessageRow(icon: "waveform", color: .green, text: "\(state.songTitle) - \(state.artistName)")
-                            } else {
-                                MessageRow(icon: "play.circle.fill", color: .green, text: "No se está reproduciendo nada")
-                            }
+                    HStack(alignment: .bottom, spacing: 2) {
+                        ForEach([2, 4, 6, 8], id: \.self) { h in
+                            RoundedRectangle(cornerRadius: 1)
+                                .fill(Color.white.opacity(0.4))
+                                .frame(width: 2, height: CGFloat(h))
                         }
                     }
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(20)
             }
-        }
-        .padding(25)
-        .overlay(alignment: .bottomTrailing) {
-            if state.isPlaying {
-                Button(action: { state.showMusic() }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "waveform")
-                            .font(.system(size: 8, weight: .bold))
-                        Text(state.songTitle)
-                            .font(.system(size: 9, weight: .bold, design: .rounded))
-                            .lineLimit(1)
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 25)
+
+            // Selector de Categorías
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 24) {
+                    ForEach(state.categories, id: \.self) { cat in
+                        Button(action: { 
+                            withAnimation(.spring()) {
+                                state.activeCategory = cat 
+                            }
+                        }) {
+                            VStack(spacing: 6) {
+                                Text(cat.uppercased())
+                                    .font(.system(size: 10, weight: .black, design: .rounded))
+                                    .tracking(2)
+                                    .foregroundColor(state.activeCategory == cat ? .white : .white.opacity(0.3))
+                                
+                                if state.activeCategory == cat {
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .fill(Color.white)
+                                        .frame(width: 24, height: 3)
+                                } else {
+                                    Spacer().frame(height: 3)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.orange.opacity(0.15))
-                    .foregroundColor(.orange)
-                    .cornerRadius(20)
+                }
+                .padding(.horizontal, 25)
+            }
+            .padding(.bottom, 20)
+            
+            Divider().background(Color.white.opacity(0.1))
+
+            // Parrilla Dinámica de Apps
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+                    ForEach(getAppsForCategory(state.activeCategory), id: \.id) { app in
+                        Button(action: { state.openApp(named: app.id) }) {
+                            VStack(spacing: 10) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                        .fill(state.selectedApp == app.id ? Color.white.opacity(0.1) : Color(white: 0.12))
+                                        .frame(width: 68, height: 68)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                                .stroke(state.selectedApp == app.id ? app.color : Color.clear, lineWidth: 2)
+                                        )
+                                    
+                                    if let icon = getAppIcon(for: app.name) {
+                                        Image(nsImage: icon)
+                                            .resizable()
+                                            .frame(width: 32, height: 32)
+                                    } else {
+                                        Image(systemName: app.icon)
+                                            .font(.system(size: 24))
+                                            .foregroundColor(app.color)
+                                    }
+                                    
+                                    if let badge = app.badge {
+                                        Text(badge)
+                                            .font(.system(size: 10, weight: .black))
+                                            .foregroundColor(.white)
+                                            .frame(width: 20, height: 20)
+                                            .background(Color.red)
+                                            .clipShape(Circle())
+                                            .overlay(Circle().stroke(Color.black, lineWidth: 2))
+                                            .offset(x: 28, y: -28)
+                                    }
+                                }
+                                
+                                Text(app.name)
+                                    .font(.system(size: 10, weight: .bold))
+                                    .opacity(state.selectedApp == app.id ? 1.0 : 0.4)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    // Botón de Más
+                    VStack(spacing: 10) {
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(Color.white.opacity(0.1), style: StrokeStyle(lineWidth: 2, dash: [4]))
+                            .background(Color.white.opacity(0.02))
+                            .frame(width: 68, height: 68)
+                            .overlay(Image(systemName: "plus").opacity(0.4))
+                        
+                        Text("MÁS")
+                            .font(.system(size: 10, weight: .bold))
+                            .opacity(0.4)
+                    }
+                }
+                .padding(25)
+            }
+            .frame(height: 220)
+            
+            Spacer()
+            
+            // Sección Reproduciendo (Footer de la Isla)
+            if state.isPlaying || !state.songTitle.isEmpty {
+                Button(action: { state.showMusic() }) {
+                    HStack(spacing: 15) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(LinearGradient(colors: [Color.green.opacity(0.2), Color.black], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                .frame(width: 56, height: 56)
+                            
+                            if let icon = getAppIcon(for: state.currentPlayer) {
+                                Image(nsImage: icon)
+                                    .resizable()
+                                    .frame(width: 28, height: 28)
+                            } else {
+                                Image(systemName: "music.note")
+                                    .foregroundColor(.green)
+                                    .font(.system(size: 24))
+                            }
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(state.songTitle)
+                                .font(.system(size: 15, weight: .black, design: .rounded))
+                                .lineLimit(1)
+                            Text("\(state.artistName) • \(state.currentPlayer)")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.white.opacity(0.5))
+                                .lineLimit(1)
+                        }
+                        
+                        Spacer()
+                        
+                        // Visualizador Pro
+                        HStack(spacing: 3) {
+                            ForEach(0..<state.bars.count, id: \.self) { i in
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Color.green)
+                                    .frame(width: 3, height: state.bars[i])
+                                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: state.bars[i])
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color.black.opacity(0.4))
+                        .cornerRadius(14)
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.05), lineWidth: 1))
+                    }
+                    .padding(18)
+                    .background(
+                        RoundedRectangle(cornerRadius: 32, style: .continuous)
+                            .fill(LinearGradient(colors: [Color.white.opacity(0.05), Color.black.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .overlay(RoundedRectangle(cornerRadius: 32).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                    )
                 }
                 .buttonStyle(.plain)
-                .padding(15)
+                .padding(.horizontal, 15)
+                .padding(.bottom, 20)
             }
+        }
+    }
+    
+    struct AppData {
+        let id: String
+        let name: String
+        let icon: String
+        let color: Color
+        let badge: String?
+    }
+    
+    func getAppsForCategory(_ cat: String) -> [AppData] {
+        switch cat {
+        case "Favoritos":
+            return [
+                AppData(id: "Spotify", name: "Spotify", icon: "play.fill", color: .green, badge: nil),
+                AppData(id: "Wsp", name: "WhatsApp", icon: "message.fill", color: .green, badge: "3"),
+                AppData(id: "Slack", name: "Slack", icon: "hash", color: .purple, badge: "!"),
+                AppData(id: "Finder", name: "Finder", icon: "folder.fill", color: .blue, badge: nil)
+            ]
+        case "Recientes":
+            return [
+                AppData(id: "Chrome", name: "Google Chrome", icon: "network", color: .blue, badge: nil),
+                AppData(id: "Calendar", name: "Calendario", icon: "calendar", color: .red, badge: nil),
+                AppData(id: "Settings", name: "Settings", icon: "gearshape.fill", color: .gray, badge: nil)
+            ]
+        case "Utilidades":
+            return [
+                AppData(id: "Weather", name: "Clima", icon: "cloud.fill", color: .blue, badge: nil),
+                AppData(id: "Timer", name: "Timer", icon: "timer", color: .orange, badge: nil)
+            ]
+        default: return []
         }
     }
 
@@ -501,6 +628,8 @@ struct MessageRow: View {
 }
 
 extension Color {
+    static let sky = Color(red: 0.35, green: 0.75, blue: 1.0)
+    
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         var int: UInt64 = 0
@@ -524,5 +653,51 @@ extension Color {
             blue: Double(b) / 255,
             opacity: Double(a) / 255
         )
+    }
+}
+
+extension View {
+    func border(width: CGFloat, edges: [Edge], color: Color) -> some View {
+        overlay(EdgeBorder(width: width, edges: edges).foregroundColor(color))
+    }
+}
+
+struct EdgeBorder: Shape {
+    var width: CGFloat
+    var edges: [Edge]
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        for edge in edges {
+            var x: CGFloat {
+                switch edge {
+                case .top, .bottom, .leading: return rect.minX
+                case .trailing: return rect.maxX - width
+                }
+            }
+
+            var y: CGFloat {
+                switch edge {
+                case .top, .leading, .trailing: return rect.minY
+                case .bottom: return rect.maxY - width
+                }
+            }
+
+            var w: CGFloat {
+                switch edge {
+                case .top, .bottom: return rect.width
+                case .leading, .trailing: return width
+                }
+            }
+
+            var h: CGFloat {
+                switch edge {
+                case .top, .bottom: return width
+                case .leading, .trailing: return rect.height
+                }
+            }
+            path.addRect(CGRect(x: x, y: y, width: w, height: h))
+        }
+        return path
     }
 }

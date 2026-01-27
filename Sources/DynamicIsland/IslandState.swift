@@ -66,6 +66,13 @@ class IslandState: ObservableObject {
     @Published var wspBadge: String = ""
     @Published var slackBadge: String = ""
     
+    // Categories and App State
+    @Published var activeCategory: String = "Favoritos"
+    let categories = ["Favoritos", "Recientes", "Utilidades"]
+    
+    // Visualizer Bars
+    @Published var bars: [CGFloat] = [10, 22, 12, 28, 18]
+    
     private var collapseTimer: Timer?
 
     init() {
@@ -77,6 +84,14 @@ class IslandState: ObservableObject {
             guard let self = self else { return }
             if self.isPlaying && self.trackPosition < self.trackDuration {
                 self.trackPosition += 1
+            }
+        }
+        
+        // Timer for Visualizer Bars
+        Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            if self.isPlaying {
+                self.bars = self.bars.map { _ in CGFloat.random(in: 6...28) }
             }
         }
         
@@ -307,8 +322,8 @@ class IslandState: ObservableObject {
     func widthForMode(_ mode: IslandMode, isExpanded: Bool) -> CGFloat {
         if isExpanded {
             switch mode {
-            case .compact: return 450 // Wider for messages
-            case .music: return 360
+            case .compact: return 420
+            case .music: return 380
             case .battery: return 220
             case .volume: return 200
             default: return 300
@@ -316,8 +331,8 @@ class IslandState: ObservableObject {
         } else {
             switch mode {
             case .idle: return 20
-            case .compact: return 100
-            case .music: return 160
+            case .compact: return 120
+            case .music: return 180
             case .battery: return 100
             case .volume: return 100
             }
@@ -327,16 +342,16 @@ class IslandState: ObservableObject {
     func heightForMode(_ mode: IslandMode, isExpanded: Bool) -> CGFloat {
         if isExpanded {
             switch mode {
-            case .compact: return 220 
-            case .music: return 180 // Snugger
+            case .compact: return 480 // Much taller for grid + footer
+            case .music: return 220
             case .battery: return 70
             case .volume: return 60
             default: return 160
             }
         } else {
             switch mode {
-            case .idle: return 1 // Minimal to not block tabs
-            default: return 30
+            case .idle: return 1 
+            default: return 35
             }
         }
     }
