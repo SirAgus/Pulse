@@ -295,113 +295,105 @@ struct IslandView: View {
         VStack(spacing: 0) {
             dashboardStatusBar
             dashboardCategorySelector
-            
             Divider().background(Color.white.opacity(0.1))
+            dashboardAppGrid
+            dashboardContextualWidgets
+            Spacer()
+            dashboardFooter
+        }
+    }
 
-            // Parrilla Dinámica de Apps
-            ScrollView {
-                VStack(spacing: 20) {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
-                        ForEach(getAppsForCategory(state.activeCategory), id: \.id) { app in
-                            Button(action: { 
-                                state.openApp(named: app.id)
-                            }) {
-                                VStack(spacing: 10) {
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                            .fill(state.selectedApp == app.id ? Color.white.opacity(0.1) : Color(white: 0.12))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                                    .stroke(state.selectedApp == app.id ? app.color : Color.clear, lineWidth: 2)
-                                            )
-                                        
-                                        if let icon = getAppIcon(for: app.name) {
-                                            Image(nsImage: icon)
-                                                .resizable()
-                                                .frame(width: 32, height: 32)
-                                        } else {
-                                            Image(systemName: app.icon)
-                                                .font(.system(size: 24))
-                                                .foregroundColor(app.color)
-                                        }
-                                        
-                                        if let badge = app.badge, !badge.isEmpty {
-                                            Text(badge)
-                                                .font(.system(size: 10, weight: .black))
-                                                .foregroundColor(.white)
-                                                .frame(width: 20, height: 20)
-                                                .background(Color.red)
-                                                .clipShape(Circle())
-                                                .overlay(Circle().stroke(Color.black, lineWidth: 2))
-                                                .offset(x: 28, y: -28)
-                                        }
+    var dashboardAppGrid: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+                    ForEach(getAppsForCategory(state.activeCategory), id: \.id) { app in
+                        Button(action: { 
+                            state.openApp(named: app.id)
+                        }) {
+                            VStack(spacing: 10) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                        .fill(state.selectedApp == app.id ? Color.white.opacity(0.1) : Color(white: 0.12))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                                .stroke(state.selectedApp == app.id ? app.color : Color.clear, lineWidth: 2)
+                                        )
+                                    
+                                    if let icon = getAppIcon(for: app.name) {
+                                        Image(nsImage: icon)
+                                            .resizable()
+                                            .frame(width: 32, height: 32)
+                                    } else {
+                                        Image(systemName: app.icon)
+                                            .font(.system(size: 24))
+                                            .foregroundColor(app.color)
                                     }
                                     
-                                    Text(app.name)
-                                        .font(.system(size: 10, weight: .bold))
-                                        .opacity(state.selectedApp == app.id ? 1.0 : 0.4)
+                                    if let badge = app.badge, !badge.isEmpty {
+                                        Text(badge)
+                                            .font(.system(size: 10, weight: .black))
+                                            .foregroundColor(.white)
+                                            .frame(width: 20, height: 20)
+                                            .background(Color.red)
+                                            .clipShape(Circle())
+                                            .overlay(Circle().stroke(Color.black, lineWidth: 2))
+                                            .offset(x: 28, y: -28)
+                                    }
                                 }
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    
-                    // Contextual Widgets based on selected app
-                    if let selected = state.selectedApp {
-                        VStack(spacing: 12) {
-                            if selected == "Timer" {
-                                timerWidget
-                            } else if selected == "Notes" {
-                                notesWidget
-                            } else if selected == "Settings" {
-                                settingsWidget
-                            } else {
-                                // Default recent info for other apps
-                                HStack {
-                                    Text("Información de \(selected)")
-                                        .font(.system(size: 12, weight: .bold))
-                                    Spacer()
-                                    Image(systemName: "chevron.right").opacity(0.3)
-                                }
-                                .padding()
-                                .background(Color.white.opacity(0.05))
-                                .cornerRadius(18)
+                                
+                                Text(app.name)
+                                    .font(.system(size: 10, weight: .bold))
+                                    .opacity(state.selectedApp == app.id ? 1.0 : 0.4)
                             }
                         }
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .buttonStyle(.plain)
                     }
                 }
-                .padding(25)
             }
-            .frame(height: 250)
-            
+            .padding(25)
+        }
+        .frame(height: 250)
+    }
+
+    var dashboardContextualWidgets: some View {
+        Group {
+            if let selected = state.selectedApp {
+                VStack(spacing: 12) {
+                    if selected == "Timer" {
+                        timerWidget
+                    } else if selected == "Notes" {
+                        notesWidget
+                    } else if selected == "Settings" {
+                        settingsWidget
+                    } else {
+                        recentInfoWidget(for: selected)
+                    }
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.horizontal, 25)
+            }
+        }
+    }
+
+    func recentInfoWidget(for appName: String) -> some View {
+        HStack {
+            Text("Información de \(appName)")
+                .font(.system(size: 12, weight: .bold))
             Spacer()
-            
-            // Sección Reproduciendo (Footer de la Isla)
+            Image(systemName: "chevron.right").opacity(0.3)
+        }
+        .padding()
+        .background(Color.white.opacity(0.05))
+        .cornerRadius(18)
+    }
+
+    var dashboardFooter: some View {
+        Group {
             if state.isPlaying || !state.songTitle.isEmpty {
                 Button(action: { state.showMusic() }) {
                     HStack(spacing: 15) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .fill(LinearGradient(colors: [state.accentColor.opacity(0.2), Color.black], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                .frame(width: 56, height: 56)
-                            
-                            if let artwork = state.trackArtwork {
-                                Image(nsImage: artwork)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: 56, height: 56)
-                                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                            } else if let icon = getAppIcon(for: state.currentPlayer) {
-                                Image(nsImage: icon)
-                                    .resizable()
-                                    .frame(width: 28, height: 28)
-                            } else {
-                                Image(systemName: "music.note")
-                                    .foregroundColor(state.accentColor)
-                                    .font(.system(size: 24))
-                            }
-                        }
+                        footerArtworkView
                         
                         VStack(alignment: .leading, spacing: 3) {
                             Text(state.songTitle)
@@ -415,20 +407,7 @@ struct IslandView: View {
                         
                         Spacer()
                         
-                        // Visualizador Pro
-                        HStack(spacing: 3) {
-                            ForEach(0..<state.bars.count, id: \.self) { i in
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(state.accentColor)
-                                    .frame(width: 3, height: state.bars[i])
-                                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: state.bars[i])
-                            }
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(Color.black.opacity(0.4))
-                        .cornerRadius(14)
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.05), lineWidth: 1))
+                        footerVisualizer
                     }
                     .padding(18)
                     .background(
@@ -442,6 +421,46 @@ struct IslandView: View {
                 .padding(.bottom, 20)
             }
         }
+    }
+
+    var footerArtworkView: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(LinearGradient(colors: [state.accentColor.opacity(0.2), Color.black], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .frame(width: 56, height: 56)
+            
+            if let artwork = state.trackArtwork {
+                Image(nsImage: artwork)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+            } else if let icon = getAppIcon(for: state.currentPlayer) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: 28, height: 28)
+            } else {
+                Image(systemName: "music.note")
+                    .foregroundColor(state.accentColor)
+                    .font(.system(size: 24))
+            }
+        }
+    }
+
+    var footerVisualizer: some View {
+        HStack(spacing: 3) {
+            ForEach(0..<state.bars.count, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(state.accentColor)
+                    .frame(width: 3, height: state.bars[i])
+                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: state.bars[i])
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.black.opacity(0.4))
+        .cornerRadius(14)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.05), lineWidth: 1))
     }
     
     struct AppData {
