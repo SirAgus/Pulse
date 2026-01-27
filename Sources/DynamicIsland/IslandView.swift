@@ -8,27 +8,26 @@ struct IslandView: View {
     var body: some View {
         ZStack { // Remove fixed alignment, use natural centering
             
+            // Detection Layer (Background)
+            RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 4 : 15), style: .continuous)
+                .fill(Color.black.opacity(0.001)) // Invisible but clickable
+                .onTapGesture {
+                    state.toggleExpand()
+                }
+            
             // Main Island Container
             RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 4 : 15), style: .continuous)
-                .fill(Color.black)
-                .frame(
-                    width: state.widthForMode(state.mode, isExpanded: state.isExpanded),
-                    height: state.heightForMode(state.mode, isExpanded: state.isExpanded)
-                )
+                .fill(state.islandColor)
                 .overlay(
                     contentForMode(state.mode)
                         .opacity(state.mode == .idle ? 0 : 1)
                 )
-                .shadow(color: .clear, radius: 0)
-                .onTapGesture {
-                    state.toggleExpand()
-                }
-                .contextMenu {
-                    Button("Salir") {
-                        NSApplication.shared.terminate(nil)
-                    }
-                }
+                .allowsHitTesting(true) // Ensure children buttons work
         }
+        .frame(
+            width: state.widthForMode(state.mode, isExpanded: state.isExpanded),
+            height: state.heightForMode(state.mode, isExpanded: state.isExpanded)
+        )
         .onHover { hovering in
             state.isHovering = hovering
         }
@@ -54,6 +53,18 @@ struct IslandView: View {
                     expandedMusicContent
                 } else {
                     compactMusicContent
+                }
+            case .timer:
+                if state.isExpanded {
+                    expandedTimerContent
+                } else {
+                    compactTimerContent
+                }
+            case .notes:
+                if state.isExpanded {
+                    expandedNotesContent
+                } else {
+                    compactNotesContent
                 }
             case .battery:
                 batteryContent
@@ -133,7 +144,146 @@ struct IslandView: View {
                 .animation(.easeInOut(duration: 0.4).repeatForever(), value: state.isPlaying)
             }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 15)
+    }
+    
+    // MARK: - Native Timer Views
+    
+    var compactTimerContent: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "timer")
+                .foregroundColor(.orange)
+                .font(.system(size: 14, weight: .bold))
+            Text(formatTime(state.timerRemaining))
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+        }
+    }
+    
+    var expandedTimerContent: some View {
+        VStack(spacing: 15) {
+            HStack {
+                Button(action: { state.showDashboard() }) {
+                    Image(systemName: "chevron.left.circle.fill")
+                        .font(.system(size: 20))
+                        .opacity(0.3)
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                Text("TEMPORIZADOR")
+                    .font(.system(size: 10, weight: .black))
+                    .opacity(0.4)
+                Spacer()
+                Image(systemName: "timer").foregroundColor(.orange)
+            }
+            
+            Text(formatTime(state.timerRemaining))
+                .font(.system(size: 40, weight: .black, design: .monospaced))
+            
+            HStack(spacing: 15) {
+                if state.isTimerRunning {
+                    Button(action: { state.stopTimer() }) {
+                        Text("PAUSAR")
+                            .font(.system(size: 12, weight: .bold))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 40)
+                            .background(Color.orange.opacity(0.2))
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Button(action: { state.startTimer(minutes: 5) }) {
+                        Text("5m")
+                            .font(.system(size: 12, weight: .bold))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 40)
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: { state.startTimer(minutes: 10) }) {
+                        Text("10m")
+                            .font(.system(size: 12, weight: .bold))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 40)
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(20)
+    }
+    
+    // MARK: - Native Notes Views
+    
+    var compactNotesContent: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "note.text")
+                .foregroundColor(.yellow)
+            Text(state.notes.first ?? "Notas")
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+                .frame(maxWidth: 80)
+        }
+    }
+    
+    var expandedNotesContent: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Button(action: { state.showDashboard() }) {
+                    Image(systemName: "chevron.left.circle.fill")
+                        .font(.system(size: 20))
+                        .opacity(0.3)
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                Text("MIS NOTAS")
+                    .font(.system(size: 10, weight: .black))
+                    .opacity(0.4)
+                Spacer()
+                Button(action: { state.addNote() }) {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundColor(.yellow)
+                        .font(.system(size: 20))
+                }
+                .buttonStyle(.plain)
+            }
+            
+            ScrollView {
+                VStack(spacing: 10) {
+                    ForEach(0..<state.notes.count, id: \.self) { index in
+                        HStack {
+                            if state.editingNoteIndex == index {
+                                TextField("Contenido...", text: $state.notes[index], onCommit: {
+                                    state.editingNoteIndex = nil
+                                })
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 13))
+                            } else {
+                                Text(state.notes[index])
+                                    .font(.system(size: 13, weight: .medium))
+                                    .onTapGesture { state.editingNoteIndex = index }
+                                
+                                Spacer()
+                                
+                                Button(action: { state.deleteNote(at: index) }) {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.red.opacity(0.6))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(12)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(12)
+                    }
+                }
+            }
+        }
+        .padding(20)
     }
     
     var expandedDashboardContent: some View {
@@ -190,34 +340,34 @@ struct IslandView: View {
             .padding(.bottom, 25)
 
             // Selector de Categorías
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 24) {
+                HStack(spacing: 0) {
                     ForEach(state.categories, id: \.self) { cat in
                         Button(action: { 
-                            withAnimation(.spring()) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 state.activeCategory = cat 
                             }
                         }) {
-                            VStack(spacing: 6) {
+                            VStack(spacing: 8) {
                                 Text(cat.uppercased())
-                                    .font(.system(size: 10, weight: .black, design: .rounded))
-                                    .tracking(2)
+                                    .font(.system(size: 10, weight: activeCategory == cat ? .black : .bold, design: .rounded))
+                                    .tracking(1.5)
                                     .foregroundColor(state.activeCategory == cat ? .white : .white.opacity(0.3))
+                                    .frame(maxWidth: .infinity)
+                                    .contentShape(Rectangle()) // Better hit area
                                 
-                                if state.activeCategory == cat {
+                                ZStack {
                                     RoundedRectangle(cornerRadius: 2)
                                         .fill(Color.white)
                                         .frame(width: 24, height: 3)
-                                } else {
-                                    Spacer().frame(height: 3)
+                                        .opacity(state.activeCategory == cat ? 1 : 0)
                                 }
                             }
+                            .padding(.vertical, 4)
+                            .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 25)
-            }
             .padding(.bottom, 20)
             
             Divider().background(Color.white.opacity(0.1))
@@ -236,7 +386,6 @@ struct IslandView: View {
                                     ZStack {
                                         RoundedRectangle(cornerRadius: 22, style: .continuous)
                                             .fill(state.selectedApp == app.id ? Color.white.opacity(0.1) : Color(white: 0.12))
-                                            .frame(width: 68, height: 68)
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                                                     .stroke(state.selectedApp == app.id ? app.color : Color.clear, lineWidth: 2)
@@ -278,8 +427,10 @@ struct IslandView: View {
                         VStack(spacing: 12) {
                             if selected == "Timer" {
                                 timerWidget
-                            } else if selected == "Notes" || selected == "Settings" {
+                            } else if selected == "Notes" {
                                 notesWidget
+                            } else if selected == "Settings" {
+                                settingsWidget
                             } else {
                                 // Default recent info for other apps
                                 HStack {
@@ -389,7 +540,8 @@ struct IslandView: View {
         case "Utilidades":
             return [
                 AppData(id: "Weather", name: "Clima", icon: "cloud.fill", color: .sky, badge: nil),
-                AppData(id: "Timer", name: "Timer", icon: "timer", color: .orange, badge: state.isTimerRunning ? "!" : nil)
+                AppData(id: "Timer", name: "Timer", icon: "timer", color: .orange, badge: state.isTimerRunning ? "!" : nil),
+                AppData(id: "Settings", name: "Config", icon: "gearshape.fill", color: .gray, badge: nil)
             ]
         default: return []
         }
@@ -437,14 +589,17 @@ struct IslandView: View {
             }
             
             VStack(spacing: 6) {
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.15))
-                        .frame(height: 5)
-                    Capsule()
-                        .fill(Color.white)
-                        .frame(width: max(0, min(300, (300 * (state.trackPosition / max(1, state.trackDuration))))), height: 5)
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.15))
+                            .frame(height: 5)
+                        Capsule()
+                            .fill(Color.white)
+                            .frame(width: max(0, min(geo.size.width, (geo.size.width * (state.trackPosition / max(1, state.trackDuration))))), height: 5)
+                    }
                 }
+                .frame(height: 5)
                 
                 HStack {
                     Text(formatTime(state.trackPosition))
@@ -564,18 +719,18 @@ struct IslandView: View {
     // MARK: - Widgets
     
     var timerWidget: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("TEMPORIZADOR")
-                    .font(.system(size: 9, weight: .black))
-                    .opacity(0.4)
-                Text(formatTime(state.timerRemaining))
-                    .font(.system(size: 24, weight: .black, design: .monospaced))
-            }
-            
-            Spacer()
-            
-            HStack(spacing: 12) {
+        VStack(spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("TEMPORIZADOR")
+                        .font(.system(size: 9, weight: .black))
+                        .opacity(0.4)
+                    Text(formatTime(state.timerRemaining))
+                        .font(.system(size: 24, weight: .black, design: .monospaced))
+                }
+                
+                Spacer()
+                
                 if state.isTimerRunning {
                     Button(action: { state.stopTimer() }) {
                         Image(systemName: "pause.fill")
@@ -584,21 +739,30 @@ struct IslandView: View {
                             .clipShape(Circle())
                     }
                 } else {
-                    Button(action: { state.startTimer(minutes: 5) }) {
-                        Text("5m")
-                            .font(.system(size: 12, weight: .bold))
+                    Button(action: { state.startTimer(minutes: 0) }) {
+                        Image(systemName: "play.fill")
                             .frame(width: 40, height: 40)
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(Circle())
-                    }
-                    Button(action: { state.startTimer(minutes: 10) }) {
-                        Text("10m")
-                            .font(.system(size: 12, weight: .bold))
-                            .frame(width: 40, height: 40)
-                            .background(Color.white.opacity(0.1))
+                            .background(Color.orange)
                             .clipShape(Circle())
                     }
                 }
+            }
+            
+            if !state.isTimerRunning {
+                HStack {
+                    Image(systemName: "clock")
+                        .opacity(0.4)
+                    TextField("Minutos", value: $state.customTimerMinutes, formatter: NumberFormatter())
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12, weight: .bold))
+                        .frame(width: 50)
+                    
+                    Slider(value: $state.customTimerMinutes, in: 1...60, step: 1)
+                        .accentColor(.orange)
+                }
+                .padding(10)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(12)
             }
         }
         .padding()
@@ -608,16 +772,87 @@ struct IslandView: View {
     
     var notesWidget: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("NOTAS RÁPIDAS")
+            HStack {
+                Text("NOTAS RÁPIDAS")
+                    .font(.system(size: 9, weight: .black))
+                    .opacity(0.4)
+                Spacer()
+                Button(action: { state.addNote() }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .buttonStyle(.plain)
+            }
+            
+            VStack(spacing: 8) {
+                ForEach(state.notes.prefix(2).indices, id: \.self) { i in
+                    Text(state.notes[i])
+                        .font(.system(size: 12, weight: .medium))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .background(Color.white.opacity(0.04))
+                        .cornerRadius(8)
+                        .lineLimit(1)
+                }
+                
+                if state.notes.count > 2 {
+                    Text("+ \(state.notes.count - 2) más...")
+                        .font(.system(size: 10))
+                        .opacity(0.4)
+                }
+            }
+        }
+        .padding()
+        .background(Color.white.opacity(0.05))
+        .cornerRadius(22)
+    }
+    
+    var settingsWidget: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            Text("CONFIGURACIÓN DE LA ISLA")
                 .font(.system(size: 9, weight: .black))
                 .opacity(0.4)
             
-            TextField("Escribe algo...", text: $state.noteContent)
-                .textFieldStyle(.plain)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .padding(12)
-                .background(Color.white.opacity(0.05))
-                .cornerRadius(12)
+            VStack(spacing: 12) {
+                // Color de la Isla
+                HStack {
+                    Label("Color Fondo", systemImage: "paintpalette.fill")
+                        .font(.system(size: 12, weight: .bold))
+                    Spacer()
+                    HStack(spacing: 8) {
+                        ForEach([Color.black, Color(hex: "1a1a1a"), Color(hex: "001a33"), Color(hex: "1a0033")], id: \.self) { color in
+                            Circle()
+                                .fill(color)
+                                .frame(width: 20, height: 20)
+                                .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
+                                .onTapGesture { state.islandColor = color }
+                        }
+                    }
+                }
+                
+                // Color Acento
+                HStack {
+                    Label("Color Acento", systemImage: "sparkles")
+                        .font(.system(size: 12, weight: .bold))
+                    Spacer()
+                    HStack(spacing: 8) {
+                        ForEach([Color.orange, Color.green, Color.blue, Color.purple], id: \.self) { color in
+                            Circle()
+                                .fill(color)
+                                .frame(width: 20, height: 20)
+                                .onTapGesture { state.accentColor = color }
+                        }
+                    }
+                }
+                
+                Divider().background(Color.white.opacity(0.1))
+                
+                Toggle(isOn: $state.showClock) {
+                    Text("Mostrar Reloj")
+                        .font(.system(size: 12, weight: .bold))
+                }
+                .toggleStyle(SwitchToggleStyle(tint: state.accentColor))
+            }
         }
         .padding()
         .background(Color.white.opacity(0.05))

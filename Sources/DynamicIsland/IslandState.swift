@@ -9,6 +9,8 @@ enum IslandMode {
     case music
     case battery
     case volume
+    case timer
+    case notes
 }
 
 class IslandState: ObservableObject {
@@ -43,7 +45,15 @@ class IslandState: ObservableObject {
     // Music State
     @Published var songTitle: String = ""
     @Published var artistName: String = ""
-    @Published var isPlaying: Bool = false
+    @Published var isPlaying: Bool = false {
+        didSet {
+            if isPlaying && mode != .music {
+                setMode(.music)
+            } else if !isPlaying && mode == .music {
+                setMode(.compact)
+            }
+        }
+    }
     @Published var currentPlayer: String = "Spotify"
     @Published var trackPosition: Double = 0
     @Published var trackDuration: Double = 1
@@ -69,7 +79,12 @@ class IslandState: ObservableObject {
     @Published var slackBadge: String = ""
     
     // Categories and App State
-    @Published var activeCategory: String = "Favoritos"
+    @Published var activeCategory: String = "Favoritos" {
+        didSet {
+            // Clear selection when switching tabs for a cleaner feel
+            selectedApp = nil
+        }
+    }
     let categories = ["Favoritos", "Recientes", "Utilidades"]
     
     // Visualizer Bars
@@ -79,12 +94,19 @@ class IslandState: ObservableObject {
     @Published var timerRemaining: TimeInterval = 0
     @Published var isTimerRunning: Bool = false
     @Published var timerTotal: TimeInterval = 0
+    @Published var customTimerMinutes: Double = 5
     
     // Notes
-    @Published var noteContent: String = "Recordatorio: Comprar café..."
+    @Published var notes: [String] = ["Recordatorio: Comprar café...", "Llamar a mamá", "Idea: App de Dynamic Island"]
+    @Published var editingNoteIndex: Int? = nil
     
     // Wi-Fi
     @Published var wifiSSID: String = "Wi-Fi"
+    
+    // Settings
+    @Published var islandColor: Color = .black
+    @Published var showClock: Bool = true
+    @Published var accentColor: Color = .orange
     
     private var collapseTimer: Timer?
 
@@ -130,19 +152,31 @@ class IslandState: ObservableObject {
     }
     
     func refreshWiFiStatus() {
+        // Try native first
         if let interface = CWWiFiClient.shared().interface(), let ssid = interface.ssid() {
-            DispatchQueue.main.async {
-                self.wifiSSID = ssid
-            }
+            DispatchQueue.main.async { self.wifiSSID = ssid }
+            return
+        }
+        
+        // Fallback to shell command
+        let task = Process()
+        task.launchPath = "/usr/sbin/networksetup"
+        task.arguments = ["-getairportnetwork", "en0"] // en0 is standard for WiFi
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.launch()
+        
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        if let output = String(data: data, encoding: .utf8), output.contains("Current Wi-Fi Network:") {
+            let ssid = output.replacingOccurrences(of: "Current Wi-Fi Network: ", with: "").trimmingCharacters(in: .newlines)
+            DispatchQueue.main.async { self.wifiSSID = ssid }
         } else {
-            DispatchQueue.main.async {
-                self.wifiSSID = "Sin Wi-Fi"
-            }
+            DispatchQueue.main.async { self.wifiSSID = "Conectado" }
         }
     }
     
     func startTimer(minutes: Double) {
-        timerTotal = minutes * 60
+        timerTotal = (minutes > 0 ? minutes : customTimerMinutes) * 60
         timerRemaining = timerTotal
         isTimerRunning = true
         setMode(.compact)
@@ -150,6 +184,20 @@ class IslandState: ObservableObject {
     
     func stopTimer() {
         isTimerRunning = false
+    }
+    
+    // Notes Management
+    func addNote() {
+        notes.insert("Nueva nota...", at: 0)
+        editingNoteIndex = 0
+    }
+    
+    func deleteNote(at index: Int) {
+        guard notes.indices.contains(index) else { return }
+        notes.remove(at: index)
+        if editingNoteIndex == index {
+            editingNoteIndex = nil
+        }
     }
 
     func showNotification(_ text: String) {
@@ -213,19 +261,20 @@ class IslandState: ObservableObject {
     func previousTrack() { musicControl("previous track") }
     
     func openAirPlay() {
-        // More robust way to open the Sound/AirPlay picker on modern macOS
+        // Universal way to open the sound/airplay picker via Control Center
         let script = """
         tell application "System Events"
             tell process "ControlCenter"
-                try
-                    click (first menu bar item of menu bar 1 whose accessibility description contains "Sound")
-                on error
-                    try
-                        click (first menu bar item of menu bar 1 whose accessibility description contains "Sonido")
-                    on error
-                        key code 28 using {control down, command down}
-                    end try
-                end try
+                set menuBarItems to menu bar items of menu bar 1
+                repeat with mi in menuBarItems
+                    set desc to description of mi
+                    if desc contains "Sound" or desc contains "Sonido" or desc contains "Volume" or desc contains "Volumen" or desc contains "Música" or desc contains "AirPlay" then
+                        click mi
+                        return
+                    end if
+                end repeat
+                -- Fallback keyboard shortcut if UI search fails
+                key code 28 using {control down, command down}
             end tell
         end tell
         """
@@ -268,6 +317,17 @@ class IslandState: ObservableObject {
     }
     
     func openApp(named: String) {
+        if named == "Timer" {
+            setMode(.timer)
+            isExpanded = true
+            return
+        }
+        if named == "Notes" {
+            setMode(.notes)
+            isExpanded = true
+            return
+        }
+        
         // Toggle selection for messages instead of immediate launch
         if selectedApp == named {
             // If already selected, then launch it
@@ -329,30 +389,37 @@ class IslandState: ObservableObject {
     }
     
     func refreshHeadphoneStatus() {
-        // Use ioreg to find Bluetooth devices with battery info
         let task = Process()
         task.launchPath = "/usr/sbin/ioreg"
-        task.arguments = ["-r", "-k", "BatteryPercent"]
+        task.arguments = ["-c", "AppleDeviceManagementHIDEventService", "-r", "-l"]
         let pipe = Pipe()
         task.standardOutput = pipe
         task.launch()
         
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         if let output = String(data: data, encoding: .utf8) {
-            // Very simplified regex-like check
-            if output.contains("BatteryPercent") {
-                // Try to find a name near it
-                let lines = output.components(separatedBy: .newlines)
-                for (index, line) in lines.enumerated() {
-                    if line.contains("BatteryPercent") {
-                        if let percent = Int(line.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) {
-                            DispatchQueue.main.async {
-                                self.headphoneBattery = percent
-                                // We'll just call them 'Audífonos' if we can't find a clean name
-                                self.headphoneName = "AirPods" 
-                            }
-                            return
+            let devices = output.components(separatedBy: "DeviceAddress")
+            for device in devices {
+                if device.contains("BatteryPercent") {
+                    let lines = device.components(separatedBy: .newlines)
+                    var battery: Int?
+                    var name: String?
+                    
+                    for line in lines {
+                        if line.contains("\"BatteryPercent\" =") {
+                            battery = Int(line.components(separatedBy: CharacterSet.decimalDigits.inverted).joined())
                         }
+                        if line.contains("\"Product\" =") {
+                            name = line.components(separatedBy: "\"").dropFirst(3).first
+                        }
+                    }
+                    
+                    if let batt = battery {
+                        DispatchQueue.main.async {
+                            self.headphoneBattery = batt
+                            self.headphoneName = name ?? "Audífonos"
+                        }
+                        return
                     }
                 }
             }
@@ -392,8 +459,8 @@ class IslandState: ObservableObject {
             switch mode {
             case .compact: return 420
             case .music: return 380
-            case .battery: return 220
-            case .volume: return 200
+            case .timer: return 320
+            case .notes: return 350
             default: return 300
             }
         } else {
@@ -403,6 +470,8 @@ class IslandState: ObservableObject {
             case .music: return 180
             case .battery: return 100
             case .volume: return 100
+            case .timer: return 140
+            case .notes: return 120
             }
         }
     }
@@ -410,15 +479,18 @@ class IslandState: ObservableObject {
     func heightForMode(_ mode: IslandMode, isExpanded: Bool) -> CGFloat {
         if isExpanded {
             switch mode {
-            case .compact: return 480 // Much taller for grid + footer
+            case .compact: return 480 
             case .music: return 220
             case .battery: return 70
             case .volume: return 60
+            case .timer: return 180
+            case .notes: return 180
             default: return 160
             }
         } else {
             switch mode {
             case .idle: return 1 
+            case .timer, .notes: return 35
             default: return 35
             }
         }

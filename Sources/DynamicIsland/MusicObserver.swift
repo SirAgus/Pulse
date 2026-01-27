@@ -4,8 +4,17 @@ import AppKit
 class MusicObserver {
     static let shared = MusicObserver()
     
+    private var syncTimer: Timer?
+    
     func start() {
         checkCurrentStatus()
+        
+        // Start polling timer for position/duration sync
+        syncTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            if IslandState.shared.isPlaying {
+                self?.updateDurations(for: IslandState.shared.currentPlayer)
+            }
+        }
         
         // Observe iTunes/Music player state changes
         DistributedNotificationCenter.default().addObserver(
@@ -35,7 +44,8 @@ class MusicObserver {
         DispatchQueue.main.async {
             IslandState.shared.songTitle = track
             IslandState.shared.artistName = artist
-            IslandState.shared.isPlaying = (playbackState == "Playing" || playbackState == "playing")
+            let nowPlaying = (playbackState == "Playing" || playbackState == "playing")
+            IslandState.shared.isPlaying = nowPlaying
             
             // Detect player
             if notification.name.rawValue.contains("Music") {
@@ -52,17 +62,18 @@ class MusicObserver {
         let positionScript = "tell application \"\(appName)\" to get player position"
         let durationScript = "tell application \"\(appName)\" to get duration of current track"
         
-        let pos = IslandState.shared.executeAppleScript(positionScript)
-        let dur = IslandState.shared.executeAppleScript(durationScript)
+        let posStr = IslandState.shared.executeAppleScript(positionScript)
+        let durStr = IslandState.shared.executeAppleScript(durationScript)
         
         DispatchQueue.main.async {
-            if let p = pos, let d = dur, let pd = Double(p), let dd = Double(dur == "ms" ? String(Int(d)!/1000) : d) {
-                // Spotify duration can be in ms or seconds depending on version/script
-                // Typically Spotify AppleScript returns seconds for player position and ms/seconds for duration.
-                // We'll handle both.
-                let finalDur = dd > 10000 ? dd / 1000 : dd
+            if let pRaw = posStr, let pd = Double(pRaw) {
                 IslandState.shared.trackPosition = pd
-                IslandState.shared.trackDuration = finalDur
+            }
+            
+            if let dRaw = durStr, let dd = Double(dRaw) {
+                // Spotify returns ms (e.g. 240000), Music returns seconds (e.g. 240)
+                let finalDur = dd > 10000 ? dd / 1000 : dd
+                IslandState.shared.trackDuration = max(1, finalDur)
             }
         }
     }
