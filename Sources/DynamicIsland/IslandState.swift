@@ -57,6 +57,8 @@ class IslandState: ObservableObject {
     @Published var currentPlayer: String = "Spotify"
     @Published var trackPosition: Double = 0
     @Published var trackDuration: Double = 1
+    @Published var trackArtwork: NSImage? = nil
+    @Published var bars: [CGFloat] = Array(repeating: 4, count: 12)
     
     // Headphones State
     @Published var headphoneName: String? = nil
@@ -235,17 +237,21 @@ class IslandState: ObservableObject {
         let isSpotifyRunning = apps.contains { $0.bundleIdentifier == "com.spotify.client" }
         let isMusicRunning = apps.contains { $0.bundleIdentifier == "com.apple.Music" }
         
-        let targetApp = currentPlayer ?? (isSpotifyRunning ? "Spotify" : (isMusicRunning ? "Music" : nil))
+        let targetApp = currentPlayer.isEmpty ? (isSpotifyRunning ? "Spotify" : (isMusicRunning ? "Music" : nil)) : currentPlayer
         
-        guard let app = targetApp else { return }
+        guard let app = targetApp, app != "Unknown" else { return }
         
         // Optimistic UI update for play/pause
         if command == "playpause" {
             withAnimation { self.isPlaying.toggle() }
         }
         
+        // Robust execution
         let script = "tell application \"\(app)\" to \(command)"
         executeAppleScript(script)
+        
+        // Refresh duration after command
+        MusicObserver.shared.checkCurrentStatus()
     }
     
     func playPause() { musicControl("playpause") }
@@ -381,30 +387,33 @@ class IslandState: ObservableObject {
     }
     
     func refreshHeadphoneStatus() {
-        // FAST PATH: Check ioreg for battery levels first
-        let taskFast = Process()
-        taskFast.launchPath = "/usr/sbin/ioreg"
-        taskFast.arguments = ["-c", "AppleDeviceManagementHIDEventService", "-r", "-l"]
-        let pipeFast = Pipe()
-        taskFast.standardOutput = pipeFast
+        // AGGRESSIVE IOREG SCAN
+        let task = Process()
+        task.launchPath = "/usr/sbin/ioreg"
+        task.arguments = ["-n", "AppleDeviceManagementHIDEventService", "-r", "-l"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
         
         do {
-            try taskFast.run()
-            let data = pipeFast.fileHandleForReading.readDataToEndOfFile()
-            if let output = String(data: data, encoding: .utf8), output.contains("BatteryPercent") {
+            try task.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let output = String(data: data, encoding: .utf8) {
                 let devices = output.components(separatedBy: "DeviceAddress")
                 for device in devices where device.contains("BatteryPercent") {
                     let lines = device.components(separatedBy: .newlines)
                     var battery: Int?
                     var name: String?
+                    
                     for line in lines {
-                        if line.contains("\"BatteryPercent\" =") {
-                            battery = Int(line.components(separatedBy: CharacterSet.decimalDigits.inverted).joined())
+                        let trimmed = line.trimmingCharacters(in: .whitespaces)
+                        if trimmed.contains("\"BatteryPercent\" =") || trimmed.contains("\"BatteryPercentMain\" =") {
+                            battery = Int(trimmed.components(separatedBy: CharacterSet.decimalDigits.inverted).joined())
                         }
-                        if line.contains("\"Product\" =") {
-                            name = line.components(separatedBy: "\"").dropFirst(3).first
+                        if trimmed.contains("\"Product\" =") {
+                            name = trimmed.components(separatedBy: "\"").dropFirst(3).first
                         }
                     }
+                    
                     if let batt = battery {
                         DispatchQueue.main.async {
                             self.headphoneName = name ?? "Audífonos"
@@ -416,15 +425,15 @@ class IslandState: ObservableObject {
             }
         } catch {}
 
-        // SLOW PATH: Use system_profiler for deeper info if ioreg missed it
-        let task = Process()
-        task.launchPath = "/usr/sbin/system_profiler"
-        task.arguments = ["SPBluetoothDataType", "-json"]
-        let pipe = Pipe()
-        task.standardOutput = pipe
+        // Fallback to system_profiler if ioreg is empty
+        let profiler = Process()
+        profiler.launchPath = "/usr/sbin/system_profiler"
+        profiler.arguments = ["SPBluetoothDataType", "-json"]
+        let pPipe = Pipe()
+        profiler.standardOutput = pPipe
         
-        task.terminationHandler = { [weak self] _ in
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        profiler.terminationHandler = { [weak self] _ in
+            let data = pPipe.fileHandleForReading.readDataToEndOfFile()
             guard let self = self,
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let controllers = json["SPBluetoothDataType"] as? [[String: Any]],
@@ -439,8 +448,7 @@ class IslandState: ObservableObject {
                     continue
                 }
                 
-                // Found a connected device, look for battery
-                if let batteryStr = details["device_batteryLevelMain"] as? String,
+                if let batteryStr = (details["device_batteryLevelMain"] as? String) ?? (details["device_batteryLevelCase"] as? String),
                    let level = Int(batteryStr.replacingOccurrences(of: "%", with: "")) {
                     DispatchQueue.main.async {
                         self.headphoneName = deviceName
@@ -450,18 +458,13 @@ class IslandState: ObservableObject {
                 }
             }
             
-            // If we reach here, no connected battery device found
             DispatchQueue.main.async {
                 self.headphoneName = nil
                 self.headphoneBattery = nil
             }
         }
         
-        do {
-            try task.run()
-        } catch {
-            print("Failed to run system_profiler: \(error)")
-        }
+        try? profiler.run()
     }
     
     private func launchApp(named: String) {

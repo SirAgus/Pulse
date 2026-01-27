@@ -86,10 +86,16 @@ struct IslandView: View {
             // Artwork / App Icon on the left
             ZStack {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(LinearGradient(colors: [Color.orange.opacity(0.3), Color.red.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(LinearGradient(colors: [state.accentColor.opacity(0.3), state.accentColor.opacity(0.1)], startPoint: .topLeading, endPoint: .bottomTrailing))
                     .frame(width: 24, height: 24)
                 
-                if let icon = getAppIcon(for: state.currentPlayer) {
+                if let artwork = state.trackArtwork {
+                    Image(nsImage: artwork)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 24, height: 24)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                } else if let icon = getAppIcon(for: state.currentPlayer) {
                     Image(nsImage: icon)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -250,7 +256,10 @@ struct IslandView: View {
                     ForEach(0..<state.notes.count, id: \.self) { index in
                         HStack {
                             if state.editingNoteIndex == index {
-                                TextField("Contenido...", text: $state.notes[index], onCommit: {
+                                TextField("Contenido...", text: Binding(
+                                    get: { state.notes[index] },
+                                    set: { state.notes[index] = $0 }
+                                ), onCommit: {
                                     state.editingNoteIndex = nil
                                 })
                                 .textFieldStyle(.plain)
@@ -570,7 +579,13 @@ struct IslandView: View {
                         .frame(width: 60, height: 60)
                         .shadow(color: .black.opacity(0.3), radius: 10, y: 5)
                     
-                    if let icon = getAppIcon(for: state.currentPlayer) {
+                    if let artwork = state.trackArtwork {
+                        Image(nsImage: artwork)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 60, height: 60)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                    } else if let icon = getAppIcon(for: state.currentPlayer) {
                         Image(nsImage: icon)
                             .resizable()
                             .frame(width: 38, height: 38)

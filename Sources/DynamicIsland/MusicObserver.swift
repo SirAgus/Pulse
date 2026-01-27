@@ -50,11 +50,42 @@ class MusicObserver {
             // Detect player
             if notification.name.rawValue.contains("Music") {
                 IslandState.shared.currentPlayer = "Music"
+                self.fetchArtwork(for: "Music")
                 self.updateDurations(for: "Music")
             } else if notification.name.rawValue.contains("spotify") {
                 IslandState.shared.currentPlayer = "Spotify"
+                self.fetchArtwork(for: "Spotify", userInfo: userInfo)
                 self.updateDurations(for: "Spotify")
             }
+        }
+    }
+
+    private func fetchArtwork(for appName: String, userInfo: [AnyHashable: Any]? = nil) {
+        if appName == "Spotify" {
+            // Try via AppleScript for directness
+            let script = "tell application \"Spotify\" to artwork url of current track"
+            if let urlStr = IslandState.shared.executeAppleScript(script), let url = URL(string: urlStr) {
+                URLSession.shared.dataTask(with: url) { data, _, _ in
+                    if let data = data, let img = NSImage(data: data) {
+                        DispatchQueue.main.async { IslandState.shared.trackArtwork = img }
+                    }
+                }.resume()
+            }
+        } else if appName == "Music" {
+            // Apple Music artwork via script is complex (returns data), but let's try a temp file approach or raw hex
+            // Simpler: Try to get the artwork if available
+            let script = """
+            tell application "Music"
+                try
+                    set rawData to raw data of artwork 1 of current track
+                    return rawData
+                on error
+                    return "err"
+                end try
+            end tell
+            """
+            // Since executeAppleScript returns string, getting raw data is hard here.
+            // As a fallback for Music, we'll use the app icon which is already handled in View.
         }
     }
     
@@ -62,25 +93,24 @@ class MusicObserver {
         let posScript = "tell application \"\(appName)\" to get player position"
         let durScript = "tell application \"\(appName)\" to get duration of current track"
         
-        let posStr = IslandState.shared.executeAppleScript(posScript)
-        let durStr = IslandState.shared.executeAppleScript(durScript)
-        
-        DispatchQueue.main.async {
-            // Position is always in seconds for both apps when using "player position"
-            if let pRaw = posStr, let pd = Double(pRaw) {
-                IslandState.shared.trackPosition = pd
-            }
+        // Use a background queue for scripts to avoid UI lag
+        DispatchQueue.global(qos: .userInteractive).async {
+            let posStr = IslandState.shared.executeAppleScript(posScript)
+            let durStr = IslandState.shared.executeAppleScript(durScript)
             
-            if let dRaw = durStr, let dd = Double(dRaw) {
-                // Spotify results are usually in ms if they are > 500
-                // Music results are in seconds
-                var finalDur = dd
-                if appName == "Spotify" && dd > 1000 {
-                    finalDur = dd / 1000.0
+            DispatchQueue.main.async {
+                if let pRaw = posStr, let pd = Double(pRaw) {
+                    IslandState.shared.trackPosition = pd
                 }
                 
-                if finalDur > 1 {
-                    IslandState.shared.trackDuration = finalDur
+                if let dRaw = durStr, let dd = Double(dRaw) {
+                    var finalDur = dd
+                    if appName == "Spotify" && dd > 1000 {
+                        finalDur = dd / 1000.0
+                    }
+                    if finalDur > 1 {
+                        IslandState.shared.trackDuration = finalDur
+                    }
                 }
             }
         }
@@ -93,7 +123,7 @@ class MusicObserver {
         
         if isSpotifyRunning {
             let stateStr = IslandState.shared.executeAppleScript("tell application \"Spotify\" to get player state")
-            if stateStr == "playing" {
+            if stateStr == "playing" || stateStr == "kPSP" {
                 updateImmediateState(for: "Spotify")
                 return
             }
@@ -101,7 +131,7 @@ class MusicObserver {
         
         if isMusicRunning {
             let stateStr = IslandState.shared.executeAppleScript("tell application \"Music\" to get player state")
-            if stateStr == "playing" {
+            if stateStr == "playing" || stateStr == "kPSP" {
                 updateImmediateState(for: "Music")
                 return
             }
@@ -118,6 +148,7 @@ class MusicObserver {
             IslandState.shared.isPlaying = true
             IslandState.shared.currentPlayer = appName
             IslandState.shared.setMode(.music)
+            self.fetchArtwork(for: appName)
             self.updateDurations(for: appName)
         }
     }
