@@ -166,15 +166,17 @@ struct IslandView: View {
                 Spacer()
                 
                 HStack(spacing: 8) {
-                    Text("LTE")
+                    Text(state.wifiSSID)
                         .font(.system(size: 10, weight: .black))
                         .opacity(0.5)
+                        .lineLimit(1)
+                        .frame(maxWidth: 60)
                     
                     HStack(alignment: .bottom, spacing: 2) {
-                        ForEach([2, 4, 6, 8], id: \.self) { h in
+                        ForEach(0..<4) { i in
                             RoundedRectangle(cornerRadius: 1)
-                                .fill(Color.white.opacity(0.4))
-                                .frame(width: 2, height: CGFloat(h))
+                                .fill(Color.white.opacity(i < 3 ? 0.8 : 0.2)) // Mock signal
+                                .frame(width: 2, height: CGFloat((i + 1) * 2))
                         }
                     }
                 }
@@ -222,65 +224,81 @@ struct IslandView: View {
 
             // Parrilla Dinámica de Apps
             ScrollView {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
-                    ForEach(getAppsForCategory(state.activeCategory), id: \.id) { app in
-                        Button(action: { state.openApp(named: app.id) }) {
-                            VStack(spacing: 10) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                        .fill(state.selectedApp == app.id ? Color.white.opacity(0.1) : Color(white: 0.12))
-                                        .frame(width: 68, height: 68)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                                .stroke(state.selectedApp == app.id ? app.color : Color.clear, lineWidth: 2)
-                                        )
-                                    
-                                    if let icon = getAppIcon(for: app.name) {
-                                        Image(nsImage: icon)
-                                            .resizable()
-                                            .frame(width: 32, height: 32)
-                                    } else {
-                                        Image(systemName: app.icon)
-                                            .font(.system(size: 24))
-                                            .foregroundColor(app.color)
-                                    }
-                                    
-                                    if let badge = app.badge {
-                                        Text(badge)
-                                            .font(.system(size: 10, weight: .black))
-                                            .foregroundColor(.white)
-                                            .frame(width: 20, height: 20)
-                                            .background(Color.red)
-                                            .clipShape(Circle())
-                                            .overlay(Circle().stroke(Color.black, lineWidth: 2))
-                                            .offset(x: 28, y: -28)
-                                    }
+                VStack(spacing: 20) {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+                        ForEach(getAppsForCategory(state.activeCategory), id: \.id) { app in
+                            Button(action: { 
+                                withAnimation {
+                                    state.selectedApp = (state.selectedApp == app.id) ? nil : app.id 
                                 }
-                                
-                                Text(app.name)
-                                    .font(.system(size: 10, weight: .bold))
-                                    .opacity(state.selectedApp == app.id ? 1.0 : 0.4)
+                            }) {
+                                VStack(spacing: 10) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                            .fill(state.selectedApp == app.id ? Color.white.opacity(0.1) : Color(white: 0.12))
+                                            .frame(width: 68, height: 68)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                                    .stroke(state.selectedApp == app.id ? app.color : Color.clear, lineWidth: 2)
+                                            )
+                                        
+                                        if let icon = getAppIcon(for: app.name) {
+                                            Image(nsImage: icon)
+                                                .resizable()
+                                                .frame(width: 32, height: 32)
+                                        } else {
+                                            Image(systemName: app.icon)
+                                                .font(.system(size: 24))
+                                                .foregroundColor(app.color)
+                                        }
+                                        
+                                        if let badge = app.badge, !badge.isEmpty {
+                                            Text(badge)
+                                                .font(.system(size: 10, weight: .black))
+                                                .foregroundColor(.white)
+                                                .frame(width: 20, height: 20)
+                                                .background(Color.red)
+                                                .clipShape(Circle())
+                                                .overlay(Circle().stroke(Color.black, lineWidth: 2))
+                                                .offset(x: 28, y: -28)
+                                        }
+                                    }
+                                    
+                                    Text(app.name)
+                                        .font(.system(size: 10, weight: .bold))
+                                        .opacity(state.selectedApp == app.id ? 1.0 : 0.4)
+                                }
                             }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                     
-                    // Botón de Más
-                    VStack(spacing: 10) {
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(Color.white.opacity(0.1), style: StrokeStyle(lineWidth: 2, dash: [4]))
-                            .background(Color.white.opacity(0.02))
-                            .frame(width: 68, height: 68)
-                            .overlay(Image(systemName: "plus").opacity(0.4))
-                        
-                        Text("MÁS")
-                            .font(.system(size: 10, weight: .bold))
-                            .opacity(0.4)
+                    // Contextual Widgets based on selected app
+                    if let selected = state.selectedApp {
+                        VStack(spacing: 12) {
+                            if selected == "Timer" {
+                                timerWidget
+                            } else if selected == "Notes" || selected == "Settings" {
+                                notesWidget
+                            } else {
+                                // Default recent info for other apps
+                                HStack {
+                                    Text("Información de \(selected)")
+                                        .font(.system(size: 12, weight: .bold))
+                                    Spacer()
+                                    Image(systemName: "chevron.right").opacity(0.3)
+                                }
+                                .padding()
+                                .background(Color.white.opacity(0.05))
+                                .cornerRadius(18)
+                            }
+                        }
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
                 .padding(25)
             }
-            .frame(height: 220)
+            .frame(height: 250)
             
             Spacer()
             
@@ -358,20 +376,20 @@ struct IslandView: View {
         case "Favoritos":
             return [
                 AppData(id: "Spotify", name: "Spotify", icon: "play.fill", color: .green, badge: nil),
-                AppData(id: "Wsp", name: "WhatsApp", icon: "message.fill", color: .green, badge: "3"),
-                AppData(id: "Slack", name: "Slack", icon: "hash", color: .purple, badge: "!"),
+                AppData(id: "Wsp", name: "WhatsApp", icon: "message.fill", color: .green, badge: state.wspBadge),
+                AppData(id: "Slack", name: "Slack", icon: "hash", color: .purple, badge: state.slackBadge),
                 AppData(id: "Finder", name: "Finder", icon: "folder.fill", color: .blue, badge: nil)
             ]
         case "Recientes":
             return [
                 AppData(id: "Chrome", name: "Google Chrome", icon: "network", color: .blue, badge: nil),
                 AppData(id: "Calendar", name: "Calendario", icon: "calendar", color: .red, badge: nil),
-                AppData(id: "Settings", name: "Settings", icon: "gearshape.fill", color: .gray, badge: nil)
+                AppData(id: "Notes", name: "Notes", icon: "note.text", color: .yellow, badge: nil)
             ]
         case "Utilidades":
             return [
-                AppData(id: "Weather", name: "Clima", icon: "cloud.fill", color: .blue, badge: nil),
-                AppData(id: "Timer", name: "Timer", icon: "timer", color: .orange, badge: nil)
+                AppData(id: "Weather", name: "Clima", icon: "cloud.fill", color: .sky, badge: nil),
+                AppData(id: "Timer", name: "Timer", icon: "timer", color: .orange, badge: state.isTimerRunning ? "!" : nil)
             ]
         default: return []
         }
@@ -541,6 +559,69 @@ struct IslandView: View {
         let mins = Int(seconds) / 60
         let secs = Int(seconds) % 60
         return String(format: "%d:%02d", mins, secs)
+    }
+
+    // MARK: - Widgets
+    
+    var timerWidget: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("TEMPORIZADOR")
+                    .font(.system(size: 9, weight: .black))
+                    .opacity(0.4)
+                Text(formatTime(state.timerRemaining))
+                    .font(.system(size: 24, weight: .black, design: .monospaced))
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 12) {
+                if state.isTimerRunning {
+                    Button(action: { state.stopTimer() }) {
+                        Image(systemName: "pause.fill")
+                            .frame(width: 40, height: 40)
+                            .background(Color.orange.opacity(0.2))
+                            .clipShape(Circle())
+                    }
+                } else {
+                    Button(action: { state.startTimer(minutes: 5) }) {
+                        Text("5m")
+                            .font(.system(size: 12, weight: .bold))
+                            .frame(width: 40, height: 40)
+                            .background(Color.white.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                    Button(action: { state.startTimer(minutes: 10) }) {
+                        Text("10m")
+                            .font(.system(size: 12, weight: .bold))
+                            .frame(width: 40, height: 40)
+                            .background(Color.white.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color.white.opacity(0.05))
+        .cornerRadius(22)
+    }
+    
+    var notesWidget: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("NOTAS RÁPIDAS")
+                .font(.system(size: 9, weight: .black))
+                .opacity(0.4)
+            
+            TextField("Escribe algo...", text: $state.noteContent)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .padding(12)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(12)
+        }
+        .padding()
+        .background(Color.white.opacity(0.05))
+        .cornerRadius(22)
     }
 }
 

@@ -1,5 +1,7 @@
 import SwiftUI
+import AppKit
 import Combine
+import CoreWLAN
 
 enum IslandMode {
     case idle
@@ -73,17 +75,39 @@ class IslandState: ObservableObject {
     // Visualizer Bars
     @Published var bars: [CGFloat] = [10, 22, 12, 28, 18]
     
+    // Timer State
+    @Published var timerRemaining: TimeInterval = 0
+    @Published var isTimerRunning: Bool = false
+    @Published var timerTotal: TimeInterval = 0
+    
+    // Notes
+    @Published var noteContent: String = "Recordatorio: Comprar café..."
+    
+    // Wi-Fi
+    @Published var wifiSSID: String = "Wi-Fi"
+    
     private var collapseTimer: Timer?
 
     init() {
         startMockUpdates()
         refreshVolume()
         
-        // Timer to increment song progress
+        // Timer to increment song progress and handles Timer widget
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
+            
+            // Song progress
             if self.isPlaying && self.trackPosition < self.trackDuration {
                 self.trackPosition += 1
+            }
+            
+            // Countdown Timer
+            if self.isTimerRunning && self.timerRemaining > 0 {
+                self.timerRemaining -= 1
+                if self.timerRemaining <= 0 {
+                    self.isTimerRunning = false
+                    self.showNotification("¡Tiempo terminado!")
+                }
             }
         }
         
@@ -95,12 +119,42 @@ class IslandState: ObservableObject {
             }
         }
         
-        // Timer to refresh headphone status
+        // Timer to refresh status (Headphones, WiFi, etc)
         Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
             self?.refreshHeadphoneStatus()
+            self?.refreshWiFiStatus()
         }
         
         refreshHeadphoneStatus()
+        refreshWiFiStatus()
+    }
+    
+    func refreshWiFiStatus() {
+        if let interface = CWWiFiClient.shared().interface(), let ssid = interface.ssid() {
+            DispatchQueue.main.async {
+                self.wifiSSID = ssid
+            }
+        } else {
+            DispatchQueue.main.async {
+                self.wifiSSID = "Sin Wi-Fi"
+            }
+        }
+    }
+    
+    func startTimer(minutes: Double) {
+        timerTotal = minutes * 60
+        timerRemaining = timerTotal
+        isTimerRunning = true
+        setMode(.compact)
+    }
+    
+    func stopTimer() {
+        isTimerRunning = false
+    }
+
+    func showNotification(_ text: String) {
+        // Mock notification for now
+        print(text)
     }
     
     func toggleExpand() {
@@ -159,8 +213,22 @@ class IslandState: ObservableObject {
     func previousTrack() { musicControl("previous track") }
     
     func openAirPlay() {
-        // Toggle the system AirPlay/Sound picker
-        let script = "tell application \"System Events\" to key code 28 using {control down, command down}" 
+        // More robust way to open the Sound/AirPlay picker on modern macOS
+        let script = """
+        tell application "System Events"
+            tell process "ControlCenter"
+                try
+                    click (first menu bar item of menu bar 1 whose accessibility description contains "Sound")
+                on error
+                    try
+                        click (first menu bar item of menu bar 1 whose accessibility description contains "Sonido")
+                    on error
+                        key code 28 using {control down, command down}
+                    end try
+                end try
+            end tell
+        end tell
+        """
         executeAppleScript(script)
     }
     
