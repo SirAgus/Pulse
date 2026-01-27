@@ -435,57 +435,32 @@ struct IslandView: View {
             dashboardFooter
         }
     }
+    var dashboardAppGridContent: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 30) {
+            ForEach(getAppsForCategory(state.activeCategory), id: \.id) { app in
+                AppIcon(
+                    name: app.name,
+                    iconName: app.icon,
+                    color: app.color,
+                    appName: app.id,
+                    isSelected: state.selectedApp == app.id,
+                    badge: app.badge,
+                    action: {
+                        withAnimation {
+                            state.openApp(named: app.id)
+                        }
+                    }
+                )
+            }
+        }
+        .padding(.horizontal, 20)
+    }
 
     var dashboardAppGrid: some View {
         ScrollView {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 25) {
-                ForEach(getAppsForCategory(state.activeCategory), id: \.id) { app in
-                    Button(action: { 
-                        state.openApp(named: app.id)
-                    }) {
-                        VStack(spacing: 12) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(state.selectedApp == app.id ? app.color.opacity(0.15) : Color.white.opacity(0.05))
-                                    .frame(width: 60, height: 60)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                            .stroke(state.selectedApp == app.id ? app.color : Color.white.opacity(0.1), lineWidth: 1.5)
-                                    )
-                                
-                                if let icon = getAppIcon(for: app.name) {
-                                    Image(nsImage: icon)
-                                        .resizable()
-                                        .frame(width: 40, height: 40)
-                                } else {
-                                    Image(systemName: app.icon)
-                                        .font(.system(size: 26))
-                                        .foregroundColor(app.color)
-                                }
-                                
-                                if let badge = app.badge, !badge.isEmpty {
-                                    Text(badge)
-                                        .font(.system(size: 10, weight: .black))
-                                        .foregroundColor(.white)
-                                        .padding(4)
-                                        .background(Color.red)
-                                        .clipShape(Circle())
-                                        .overlay(Circle().stroke(Color.black, lineWidth: 2))
-                                        .offset(x: 22, y: -22)
-                                }
-                            }
-                            
-                            Text(app.name)
-                                .font(.system(size: 10, weight: state.selectedApp == app.id ? .black : .bold))
-                                .foregroundColor(state.selectedApp == app.id ? .white : .white.opacity(0.5))
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(25)
+            dashboardAppGridContent
+                .padding(.vertical, 20)
         }
-        .frame(maxHeight: 280) // Limit height but allow it to be smaller
     }
 
     var dashboardDevicesGrid: some View {
@@ -1505,6 +1480,7 @@ struct IslandView: View {
 
 struct AppIcon: View {
     let name: String
+    let iconName: String
     let color: Color
     let appName: String
     let isSelected: Bool
@@ -1513,42 +1489,42 @@ struct AppIcon: View {
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 6) {
+            VStack(spacing: 8) {
                 ZStack(alignment: .topTrailing) {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(isSelected ? color.opacity(0.3) : Color(white: 0.15))
-                        .frame(width: 50, height: 50)
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .fill(isSelected ? color.opacity(0.15) : Color.white.opacity(0.05))
+                        .frame(width: 60, height: 60)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(isSelected ? color : Color.clear, lineWidth: 2)
+                            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                .stroke(isSelected ? color : Color.white.opacity(0.1), lineWidth: 1.5)
                         )
                     
-                    if let icon = getIcon(for: appName) {
-                        Image(nsImage: icon)
+                    if let nativeIcon = getIcon(for: appName) {
+                        Image(nsImage: nativeIcon)
                             .resizable()
-                            .frame(width: 32, height: 32)
-                            .padding(9)
+                            .frame(width: 40, height: 40)
+                            .padding(10)
                     } else {
-                        Image(systemName: name == "Wsp" ? "message.fill" : (name == "Slack" ? "bubbles.and.sparkles.fill" : "app.dashed"))
-                            .font(.system(size: 20))
+                        Image(systemName: iconName)
+                            .font(.system(size: 24))
                             .foregroundColor(color)
                     }
                     
-                    // Badge indicator
-                    if let b = badge, !b.isEmpty {
-                        Text(b)
-                            .font(.system(size: 10, weight: .bold))
+                    if let badge = badge, !badge.isEmpty {
+                        Text(badge)
+                            .font(.system(size: 9, weight: .black))
                             .foregroundColor(.white)
-                            .padding(4)
+                            .padding(5)
                             .background(Color.red)
                             .clipShape(Circle())
-                            .offset(x: 5, y: -5)
+                            .overlay(Circle().stroke(Color.black, lineWidth: 1.5))
+                            .offset(x: 20, y: -20)
                     }
                 }
+                
                 Text(name)
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundColor(isSelected ? color : .white)
-                    .opacity(isSelected ? 1.0 : 0.7)
+                    .font(.system(size: 10, weight: isSelected ? .black : .bold))
+                    .foregroundColor(isSelected ? .white : .white.opacity(0.5))
             }
         }
         .buttonStyle(.plain)
