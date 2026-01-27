@@ -8,15 +8,34 @@ struct IslandView: View {
     var body: some View {
         ZStack {
             // Main Island Background with Tap Gesture
-            // We use a button-like interaction for the background to correctly handle layering
-            RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 4 : 15), style: .continuous)
-                .fill(state.islandColor)
+            RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 4 : 20), style: .continuous)
+                .fill(state.backgroundStyle == .solid ? state.islandColor : Color.clear)
+                .background(
+                    ZStack {
+                        if state.backgroundStyle == .liquidGlass {
+                            VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                                .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 35 : 20, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: state.isExpanded ? 35 : 20, style: .continuous)
+                                        .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                                )
+                        } else if state.backgroundStyle == .liquidGlassDark {
+                            VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
+                                .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 35 : 20, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: state.isExpanded ? 35 : 20, style: .continuous)
+                                        .stroke(Color.black.opacity(0.4), lineWidth: 0.5)
+                                )
+                        }
+                    }
+                )
                 .contentShape(Rectangle())
                 .onTapGesture {
                     if !state.isExpanded {
                         state.toggleExpand()
                     }
                 }
+                .shadow(color: Color.black.opacity(state.backgroundStyle == .solid ? 0 : 0.3), radius: 20, x: 0, y: 10)
                 .zIndex(0)
             
             // Content Layer (Buttons, text, etc)
@@ -357,6 +376,12 @@ struct IslandView: View {
                 
                 if state.activeCategory == "Dispositivos" {
                     dashboardDevicesGrid
+                } else if state.activeCategory == "Configuración" {
+                    ScrollView {
+                        settingsWidget
+                            .padding(.top, 20)
+                            .padding(.horizontal, 25)
+                    }
                 } else {
                     dashboardAppGrid
                     
@@ -991,6 +1016,7 @@ struct IslandView: View {
         case "Recientes": return "clock.fill"
         case "Dispositivos": return "macbook.and.iphone"
         case "Utilidades": return "square.grid.2x2.fill"
+        case "Configuración": return "gearshape.fill"
         default: return "circle"
         }
     }
@@ -1165,6 +1191,27 @@ struct IslandView: View {
                                         Circle()
                                             .stroke(state.islandColor == color ? Color.white : Color.white.opacity(0.2), lineWidth: state.islandColor == color ? 2 : 1)
                                     )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                
+                // Estilo de Fondo
+                HStack {
+                    Label("Estilo", systemImage: "square.stack.3d.up.fill")
+                        .font(.system(size: 12, weight: .bold))
+                    Spacer()
+                    HStack(spacing: 6) {
+                        ForEach(BackgroundStyle.allCases, id: \.self) { style in
+                            Button(action: { state.backgroundStyle = style }) {
+                                Text(style.rawValue)
+                                    .font(.system(size: 9, weight: .bold))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(state.backgroundStyle == style ? state.accentColor : Color.white.opacity(0.1))
+                                    .foregroundColor(state.backgroundStyle == style ? .black : .white)
+                                    .cornerRadius(6)
                             }
                             .buttonStyle(.plain)
                         }
@@ -1371,5 +1418,23 @@ struct EdgeBorder: Shape {
 extension Collection {
     subscript(safe index: Index) -> Element? {
         return indices.contains(index) ? self[index] : nil
+    }
+}
+
+struct VisualEffectView: NSViewRepresentable {
+    var material: NSVisualEffectView.Material
+    var blendingMode: NSVisualEffectView.BlendingMode
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
     }
 }

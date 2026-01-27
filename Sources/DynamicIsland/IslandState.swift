@@ -19,6 +19,12 @@ enum IslandMode {
     case notes
 }
 
+enum BackgroundStyle: String, CaseIterable {
+    case solid = "Sólido"
+    case liquidGlass = "Liquid Glass"
+    case liquidGlassDark = "Liquid Glass Dark"
+}
+
 struct BluetoothDevice: Identifiable, Equatable {
     let id: String // MAC Address
     let name: String
@@ -99,7 +105,7 @@ class IslandState: ObservableObject {
             selectedApp = nil
         }
     }
-    let categories = ["Favoritos", "Recientes", "Dispositivos", "Utilidades"]
+    let categories = ["Favoritos", "Recientes", "Dispositivos", "Utilidades", "Configuración"]
     
     
     // Timer State
@@ -120,10 +126,14 @@ class IslandState: ObservableObject {
     @Published var islandColor: Color = .black
     @Published var showClock: Bool = true
     @Published var accentColor: Color = .orange
+    @Published var backgroundStyle: BackgroundStyle = .solid
     
     private var collapseTimer: Timer?
 
     init() {
+        self.mode = .compact
+        self.isExpanded = false
+        
         startMockUpdates()
         refreshVolume()
         
@@ -438,6 +448,12 @@ class IslandState: ObservableObject {
         }
         if named == "Notes" {
             setMode(.notes)
+            isExpanded = true
+            return
+        }
+        if named == "Settings" {
+            selectedApp = "Settings"
+            setMode(.compact)
             isExpanded = true
             return
         }

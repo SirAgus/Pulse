@@ -25,6 +25,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         BatteryObserver.shared.start()
         VolumeObserver.shared.start()
         setupClickOutsideMonitor()
+        
+        NSApp.activate(ignoringOtherApps: true)
     }
     
     private func setupClickOutsideMonitor() {
