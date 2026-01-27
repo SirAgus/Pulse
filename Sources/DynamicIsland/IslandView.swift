@@ -17,6 +17,8 @@ struct IslandView: View {
             // Content Layer (Buttons, text, etc)
             contentForMode(state.mode)
                 .opacity(state.mode == .idle ? 0 : 1)
+                // This ensures content catches its own clicks
+                .allowsHitTesting(true)
         }
         .frame(
             width: state.widthForMode(state.mode, isExpanded: state.isExpanded),
@@ -291,102 +293,8 @@ struct IslandView: View {
     
     var expandedDashboardContent: some View {
         VStack(spacing: 0) {
-            // Barra de Estado Superior (React Style)
-            HStack {
-                HStack(spacing: 8) {
-                    HStack(spacing: 5) {
-                        Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.75")
-                            .foregroundColor(state.isCharging ? .green : .white)
-                        Text("\(state.batteryLevel)%")
-                            .font(.system(size: 11, weight: .black, design: .rounded))
-                            .foregroundColor(state.isCharging ? .green : .white)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.05))
-                    .cornerRadius(20)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20)
-                            .stroke(state.isCharging ? Color.green.opacity(0.3) : Color.white.opacity(0.1), lineWidth: 1)
-                    )
-                    
-                    Circle()
-                        .fill(Color.orange)
-                        .frame(width: 8, height: 8)
-                        .shadow(color: .orange.opacity(0.6), radius: 4)
-                    
-                    // Connected Device (AirPods etc)
-                    if let headphone = state.headphoneName, let battery = state.headphoneBattery {
-                        HStack(spacing: 6) {
-                            Image(systemName: "airpodspro")
-                                .font(.system(size: 14))
-                                .foregroundColor(.blue)
-                            Text("\(battery)%")
-                                .font(.system(size: 11, weight: .bold))
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(20)
-                    }
-                }
-                
-                Spacer()
-                
-                HStack(spacing: 8) {
-                    Text(state.wifiSSID)
-                        .font(.system(size: 10, weight: .black))
-                        .opacity(0.5)
-                        .lineLimit(1)
-                        .frame(maxWidth: 60)
-                    
-                    HStack(alignment: .bottom, spacing: 2) {
-                        ForEach(0..<4) { i in
-                            RoundedRectangle(cornerRadius: 1)
-                                .fill(Color.white.opacity(i < 3 ? 0.8 : 0.2)) // Mock signal
-                                .frame(width: 2, height: CGFloat((i + 1) * 2))
-                        }
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Color.white.opacity(0.05))
-                .cornerRadius(20)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 25)
-
-            // Selector de Categorías
-                HStack(spacing: 0) {
-                    ForEach(state.categories, id: \.self) { cat in
-                        Button(action: { 
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                state.activeCategory = cat 
-                            }
-                        }) {
-                            VStack(spacing: 8) {
-                                Text(cat.uppercased())
-                                    .font(.system(size: 10, weight: state.activeCategory == cat ? .black : .bold, design: .rounded))
-                                    .tracking(1.5)
-                                    .foregroundColor(state.activeCategory == cat ? .white : .white.opacity(0.3))
-                                    .frame(maxWidth: .infinity)
-                                    .contentShape(Rectangle()) // Better hit area
-                                
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 2)
-                                        .fill(Color.white)
-                                        .frame(width: 24, height: 3)
-                                        .opacity(state.activeCategory == cat ? 1 : 0)
-                                }
-                            }
-                            .padding(.vertical, 4)
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            .padding(.bottom, 20)
+            dashboardStatusBar
+            dashboardCategorySelector
             
             Divider().background(Color.white.opacity(0.1))
 
@@ -475,16 +383,22 @@ struct IslandView: View {
                     HStack(spacing: 15) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .fill(LinearGradient(colors: [Color.green.opacity(0.2), Color.black], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                .fill(LinearGradient(colors: [state.accentColor.opacity(0.2), Color.black], startPoint: .topLeading, endPoint: .bottomTrailing))
                                 .frame(width: 56, height: 56)
                             
-                            if let icon = getAppIcon(for: state.currentPlayer) {
+                            if let artwork = state.trackArtwork {
+                                Image(nsImage: artwork)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 56, height: 56)
+                                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                            } else if let icon = getAppIcon(for: state.currentPlayer) {
                                 Image(nsImage: icon)
                                     .resizable()
                                     .frame(width: 28, height: 28)
                             } else {
                                 Image(systemName: "music.note")
-                                    .foregroundColor(.green)
+                                    .foregroundColor(state.accentColor)
                                     .font(.system(size: 24))
                             }
                         }
@@ -505,7 +419,7 @@ struct IslandView: View {
                         HStack(spacing: 3) {
                             ForEach(0..<state.bars.count, id: \.self) { i in
                                 RoundedRectangle(cornerRadius: 2)
-                                    .fill(Color.green)
+                                    .fill(state.accentColor)
                                     .frame(width: 3, height: state.bars[i])
                                     .animation(.spring(response: 0.3, dampingFraction: 0.6), value: state.bars[i])
                             }
@@ -694,7 +608,100 @@ struct IslandView: View {
             }
             .padding(.horizontal, 5)
         }
-        .padding(22)
+    var dashboardStatusBar: some View {
+        HStack {
+            HStack(spacing: 8) {
+                HStack(spacing: 5) {
+                    Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.75")
+                        .foregroundColor(state.isCharging ? .green : .white)
+                    Text("\(state.batteryLevel)%")
+                        .font(.system(size: 11, weight: .black, design: .rounded))
+                        .foregroundColor(state.isCharging ? .green : .white)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(20)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(state.isCharging ? Color.green.opacity(0.3) : Color.white.opacity(0.1), lineWidth: 1)
+                )
+                
+                Circle()
+                    .fill(Color.orange)
+                    .frame(width: 8, height: 8)
+                    .shadow(color: .orange.opacity(0.6), radius: 4)
+                
+                if let _ = state.headphoneName, let battery = state.headphoneBattery {
+                    HStack(spacing: 6) {
+                        Image(systemName: "airpodspro")
+                            .font(.system(size: 14))
+                            .foregroundColor(.blue)
+                        Text("\(battery)%")
+                            .font(.system(size: 11, weight: .bold))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(20)
+                }
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 8) {
+                Text(state.wifiSSID)
+                    .font(.system(size: 10, weight: .black))
+                    .opacity(0.5)
+                    .lineLimit(1)
+                    .frame(maxWidth: 60)
+                
+                HStack(alignment: .bottom, spacing: 2) {
+                    ForEach(0..<4) { i in
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(Color.white.opacity(i < 3 ? 0.8 : 0.2))
+                            .frame(width: 2, height: CGFloat((i + 1) * 2))
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.white.opacity(0.05))
+            .cornerRadius(20)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+        .padding(.bottom, 25)
+    }
+
+    var dashboardCategorySelector: some View {
+        HStack(spacing: 0) {
+            ForEach(state.categories, id: \.self) { cat in
+                Button(action: { 
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        state.activeCategory = cat 
+                    }
+                }) {
+                    VStack(spacing: 8) {
+                        Text(cat.uppercased())
+                            .font(.system(size: 10, weight: state.activeCategory == cat ? .black : .bold, design: .rounded))
+                            .tracking(1.5)
+                            .foregroundColor(state.activeCategory == cat ? .white : .white.opacity(0.3))
+                            .frame(maxWidth: .infinity)
+                            .contentShape(Rectangle())
+                        
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.white)
+                                .frame(width: 24, height: 3)
+                                .opacity(state.activeCategory == cat ? 1 : 0)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.bottom, 20)
     }
     
     func getAppIcon(for appName: String) -> NSImage? {
