@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import Combine
 import CoreWLAN
+import IOBluetooth
 
 struct NoteItem: Identifiable, Equatable {
     let id: String
@@ -16,6 +17,13 @@ enum IslandMode {
     case volume
     case timer
     case notes
+}
+
+struct BluetoothDevice: Identifiable, Equatable {
+    let id: String // MAC Address
+    let name: String
+    let isConnected: Bool
+    let batteryPercentage: Int?
 }
 
 class IslandState: ObservableObject {
@@ -65,9 +73,10 @@ class IslandState: ObservableObject {
     @Published var trackArtwork: NSImage? = nil
     @Published var bars: [CGFloat] = Array(repeating: 4, count: 12)
     
-    // Headphones State
+    // Headphones & Bluetooth State
     @Published var headphoneName: String? = nil
     @Published var headphoneBattery: Int? = nil
+    @Published var bluetoothDevices: [BluetoothDevice] = []
     
     // Battery State
     @Published var batteryLevel: Int = 100
@@ -148,10 +157,12 @@ class IslandState: ObservableObject {
         // Timer to refresh status (Headphones, WiFi, etc)
         Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
             self?.refreshHeadphoneStatus()
+            self?.refreshBluetoothDevices()
             self?.refreshWiFiStatus()
         }
         
         refreshHeadphoneStatus()
+        refreshBluetoothDevices()
         refreshWiFiStatus()
         refreshNotes()
     }
@@ -335,17 +346,55 @@ class IslandState: ObservableObject {
     func adjustVolume(by delta: Int) {
         let script = "set volume output volume ((output volume of (get volume settings)) + \(delta))"
         executeAppleScript(script)
-        // Give macOS a tiny moment to update settings
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            self.refreshVolume()
-        }
     }
     
     func refreshVolume() {
-        let script = "output volume of (get volume settings)"
-        if let volStr = executeAppleScript(script), let volInt = Int(volStr) {
-            DispatchQueue.main.async {
-                self.volume = Double(volInt) / 100.0
+        let script = "set volume output volume \(Int(volume * 100))"
+        executeAppleScript(script)
+    }
+
+    // Bluetooth Control (Native)
+    func refreshBluetoothDevices() {
+        guard let pairedDevices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] else { 
+            DispatchQueue.main.async { self.bluetoothDevices = [] }
+            return 
+        }
+        
+        var discovered: [BluetoothDevice] = []
+        for device in pairedDevices {
+            if device.isConnected() {
+                discovered.append(BluetoothDevice(
+                    id: device.addressString,
+                    name: device.nameOrAddress,
+                    isConnected: true,
+                    batteryPercentage: nil
+                ))
+            }
+        }
+        
+        DispatchQueue.main.async {
+            self.bluetoothDevices = discovered
+            
+            // Sync headphoneName if a connected device looks like one
+            // We search for audio-like devices
+            if let firstAudio = discovered.first(where: { 
+                $0.name.lowercased().contains("buds") || 
+                $0.name.lowercased().contains("airpods") || 
+                $0.name.lowercased().contains("headphones") ||
+                $0.name.lowercased().contains("audio") 
+            }) {
+                self.headphoneName = firstAudio.name
+            } else if let first = discovered.first {
+                self.headphoneName = first.name
+            }
+        }
+    }
+    
+    func disconnectBluetoothDevice(address: String) {
+        if let device = IOBluetoothDevice(addressString: address) {
+            device.closeConnection()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.refreshBluetoothDevices()
             }
         }
     }

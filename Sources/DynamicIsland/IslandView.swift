@@ -427,48 +427,78 @@ struct IslandView: View {
                 .padding(.horizontal, 10)
                 .padding(.top, 5)
 
-                // Headphones info with Volume Control
-                if let name = state.headphoneName, let battery = state.headphoneBattery {
+                // Bluetooth Devices (Real)
+                ForEach(state.bluetoothDevices) { device in
                     VStack(spacing: 0) {
-                        deviceRow(
-                            name: name,
-                            detail: "Conectado • \(battery)%",
-                            icon: "airpodspro",
-                            battery: battery,
-                            isCharging: false
-                        )
-                        
-                        Divider().background(Color.white.opacity(0.05)).padding(.horizontal, 15)
-                        
-                        // Volume Control (More compact)
-                        HStack(spacing: 10) {
-                            Image(systemName: "speaker.wave.2.fill")
-                                .font(.system(size: 9))
-                                .opacity(0.3)
-                            
-                            Slider(value: $state.volume, in: 0...1) { _ in
-                                state.refreshVolume()
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Color.white.opacity(0.05))
+                                    .frame(width: 36, height: 36)
+                                Image(systemName: device.name.lowercased().contains("audio") || device.name.lowercased().contains("buds") || device.name.lowercased().contains("pods") ? "airpodspro" : "bolt.horizontal.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(state.accentColor)
                             }
-                            .accentColor(.blue)
-                            .controlSize(.mini)
                             
-                            Text("\(Int(state.volume * 100))%")
-                                .font(.system(size: 9, weight: .bold, design: .rounded))
-                                .frame(width: 25)
-                                .opacity(0.5)
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(device.name)
+                                    .font(.system(size: 13, weight: .bold))
+                                Text("Conectado")
+                                    .font(.system(size: 10))
+                                    .opacity(0.4)
+                            }
+                            
+                            Spacer()
+                            
+                            Button(action: { state.disconnectBluetoothDevice(address: device.id) }) {
+                                Text("Desconectar")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Color.red.opacity(0.1))
+                                    .foregroundColor(.red)
+                                    .cornerRadius(8)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .padding(.horizontal, 15)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        
+                        // Volume control if it's the current headset
+                        if device.name == state.headphoneName {
+                            Divider().background(Color.white.opacity(0.05)).padding(.horizontal, 15)
+                            
+                            HStack(spacing: 10) {
+                                Image(systemName: "speaker.wave.2.fill")
+                                    .font(.system(size: 9))
+                                    .opacity(0.3)
+                                
+                                Slider(value: $state.volume, in: 0...1) { _ in
+                                    state.refreshVolume()
+                                }
+                                .accentColor(.blue)
+                                .controlSize(.mini)
+                                
+                                Text("\(Int(state.volume * 100))%")
+                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                                    .frame(width: 25)
+                                    .opacity(0.5)
+                            }
+                            .padding(.horizontal, 15)
+                            .padding(.vertical, 8)
+                        }
                     }
                     .background(Color.white.opacity(0.04))
                     .cornerRadius(14)
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.05), lineWidth: 1))
-                } else {
+                }
+                
+                if state.bluetoothDevices.isEmpty {
                     HStack {
                         Image(systemName: "headphones")
                             .font(.system(size: 20))
                             .foregroundColor(.white.opacity(0.1))
-                        Text("Buscando audífonos...")
+                        Text("Buscando dispositivos...")
                             .font(.system(size: 12, weight: .bold))
                             .opacity(0.2)
                         Spacer()
