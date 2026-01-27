@@ -29,7 +29,7 @@ struct BluetoothDevice: Identifiable, Equatable {
 class IslandState: ObservableObject {
     static let shared = IslandState()
     
-    @Published var mode: IslandMode = .idle
+    @Published var mode: IslandMode = .compact
     @Published var isExpanded: Bool = false
     @Published var isDisabled: Bool = false {
         didSet {
@@ -654,7 +654,7 @@ class IslandState: ObservableObject {
             switch mode {
             case .idle: return 20
             case .compact: return 120
-            case .music: return 180
+            case .music: return 200
             case .battery: return 100
             case .volume: return 100
             case .timer: return 140
@@ -671,7 +671,7 @@ class IslandState: ObservableObject {
             case .battery: return 70
             case .volume: return 60
             case .timer: return 180
-            case .notes: return 180
+            case .notes: return 450
             default: return 160
             }
         } else {

@@ -278,53 +278,68 @@ struct IslandView: View {
                     }
                     .padding(.top, 40)
                 } else {
-                    VStack(spacing: 12) {
-                        ForEach(0..<state.notes.count, id: \.self) { index in
-                            HStack {
-                                if state.editingNoteIndex == index {
-                                    TextField("Escribe aquí...", text: Binding(
-                                        get: { state.notes[safe: index]?.content ?? "" },
-                                        set: { state.notes[index].content = $0 }
-                                    ), onCommit: {
-                                        state.saveNote(at: index, newContent: state.notes[index].content)
-                                        state.editingNoteIndex = nil
-                                    })
-                                    .textFieldStyle(.plain)
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(.yellow)
-                                } else {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(state.notes[index].content)
-                                            .font(.system(size: 14, weight: .bold))
-                                            .foregroundColor(.white)
-                                        
-                                        Text("Nota de Sistema")
-                                            .font(.system(size: 10))
-                                            .opacity(0.4)
+                            VStack(alignment: .leading, spacing: 14) {
+                                ForEach(0..<state.notes.count, id: \.self) { index in
+                                    HStack(spacing: 15) {
+                                        if state.editingNoteIndex == index {
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                TextField("Escribe aquí...", text: Binding(
+                                                    get: { state.notes[safe: index]?.content ?? "" },
+                                                    set: { state.notes[index].content = $0 }
+                                                ), onCommit: {
+                                                    state.saveNote(at: index, newContent: state.notes[index].content)
+                                                    state.editingNoteIndex = nil
+                                                })
+                                                .textFieldStyle(.plain)
+                                                .font(.system(size: 16, weight: .semibold))
+                                                .foregroundColor(.yellow)
+                                                
+                                                Rectangle()
+                                                    .fill(Color.yellow.opacity(0.3))
+                                                    .frame(height: 1)
+                                            }
+                                        } else {
+                                            VStack(alignment: .leading, spacing: 6) {
+                                                Text(state.notes[index].content)
+                                                    .font(.system(size: 15, weight: .bold))
+                                                    .foregroundColor(.white)
+                                                    .lineLimit(3)
+                                                
+                                                HStack {
+                                                    Image(systemName: "note.text")
+                                                        .font(.system(size: 10))
+                                                    Text("Nota de Sistema")
+                                                        .font(.system(size: 10))
+                                                }
+                                                .opacity(0.4)
+                                            }
+                                            .onTapGesture { 
+                                                withAnimation {
+                                                    state.editingNoteIndex = index 
+                                                }
+                                            }
+                                            
+                                            Spacer()
+                                            
+                                            Button(action: { state.deleteNote(at: index) }) {
+                                                Image(systemName: "trash.circle.fill")
+                                                    .font(.system(size: 22))
+                                                    .foregroundColor(.red.opacity(0.6))
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
                                     }
-                                    .onTapGesture { state.editingNoteIndex = index }
-                                    
-                                    Spacer()
-                                    
-                                    Button(action: { state.deleteNote(at: index) }) {
-                                        Image(systemName: "trash.fill")
-                                            .font(.system(size: 12))
-                                            .foregroundColor(.red.opacity(0.8))
-                                    }
-                                    .buttonStyle(.plain)
+                                    .padding(18)
+                                    .background(Color.white.opacity(0.04))
+                                    .cornerRadius(20)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 20)
+                                            .stroke(state.editingNoteIndex == index ? Color.yellow.opacity(0.3) : Color.white.opacity(0.05), lineWidth: 1)
+                                    )
                                 }
                             }
-                            .padding()
-                            .background(Color.white.opacity(0.05))
-                            .cornerRadius(16)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(state.editingNoteIndex == index ? Color.yellow.opacity(0.3) : Color.clear, lineWidth: 2)
-                            )
-                        }
-                    }
-                    .padding(.horizontal, 25)
-                    .padding(.bottom, 20)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 30)
                 }
             }
         }
