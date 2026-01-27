@@ -3,6 +3,8 @@ import AppKit
 import Combine
 import CoreWLAN
 import IOBluetooth
+import CoreLocation
+import EventKit
 
 struct NoteItem: Identifiable, Equatable {
     let id: String
@@ -17,6 +19,7 @@ enum IslandMode {
     case volume
     case timer
     case notes
+    case productivity // For Pomodoro/Meeting
 }
 
 enum BackgroundStyle: String, CaseIterable {
@@ -128,6 +131,37 @@ class IslandState: ObservableObject {
     @Published var accentColor: Color = .orange
     @Published var backgroundStyle: BackgroundStyle = .solid
     
+    // Meeting Mode
+    @Published var isMicMuted: Bool = false
+    @Published var isDNDActive: Bool = false
+    
+    // Clipboard
+    @Published var clipboardHistory: [String] = []
+    private var lastChangeCount: Int = 0
+    
+    // Weather
+    @Published var currentTemp: Double?
+    @Published var precipitationProb: Int?
+    @Published var weatherCity: String = "São Paulo" // Placeholder or detected
+    
+    // Calendar
+    struct CalendarEvent: Identifiable {
+        let id: String
+        let title: String
+        let startDate: Date
+        let location: String?
+        let url: URL?
+    }
+    @Published var nextEvent: CalendarEvent?
+    private let eventStore = EKEventStore()
+    
+    // Pomodoro
+    enum PomodoroMode { case work, shortBreak, longBreak }
+    @Published var pomodoroMode: PomodoroMode = .work
+    @Published var pomodoroRemaining: TimeInterval = 25 * 60
+    @Published var isPomodoroRunning: Bool = false
+    @Published var pomodoroCycles: Int = 0
+    
     private var collapseTimer: Timer?
 
     init() {
@@ -137,9 +171,11 @@ class IslandState: ObservableObject {
         startMockUpdates()
         refreshVolume()
         
-        // Timer to increment song progress and handles Timer widget
+        // Fast timer for clipboard and music progress
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
+            self.refreshClipboard()
+            self.updatePomodoro()
             
             // Song progress
             if self.isPlaying && self.trackPosition < self.trackDuration {
@@ -149,11 +185,17 @@ class IslandState: ObservableObject {
             // Countdown Timer
             if self.isTimerRunning && self.timerRemaining > 0 {
                 self.timerRemaining -= 1
-                if self.timerRemaining <= 0 {
+                if self.timerRemaining == 0 {
+                    self.showNotification("¡Temporizador Finalizado!")
                     self.isTimerRunning = false
-                    self.showNotification("¡Tiempo terminado!")
                 }
             }
+        }
+        
+        // Slower timer for Weather and Calendar (every 10 mins)
+        Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { [weak self] _ in
+            self?.refreshWeather()
+            self?.refreshCalendar()
         }
         
         // Timer for Visualizer Bars
@@ -457,6 +499,12 @@ class IslandState: ObservableObject {
             isExpanded = true
             return
         }
+        if ["Meeting", "Clipboard", "Weather", "Calendar", "Pomodoro"].contains(named) {
+            selectedApp = named
+            setMode(.compact)
+            isExpanded = true
+            return
+        }
         
         // Toggle selection for messages instead of immediate launch
         if selectedApp == named {
@@ -655,6 +703,146 @@ class IslandState: ObservableObject {
         // No mocks for now
     }
     
+    // MARK: - Meeting Mode
+    func toggleMic() {
+        let script = """
+        set v to input volume of (get volume settings)
+        if v is 0 then
+            set volume input volume 100
+            return "unmuted"
+        else
+            set volume input volume 0
+            return "muted"
+        end if
+        """
+        if let res = executeAppleScript(script) {
+            isMicMuted = (res.trimmingCharacters(in: .whitespacesAndNewlines) == "muted")
+        }
+    }
+    
+    func refreshMicStatus() {
+        if let volStr = executeAppleScript("input volume of (get volume settings)"), let vol = Int(volStr.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            isMicMuted = (vol == 0)
+        }
+    }
+    
+    func toggleDND() {
+        // Runs the "DND Toggle" shortcut if it exists
+        DispatchQueue.global(qos: .userInitiated).async {
+            let task = Process()
+            task.launchPath = "/usr/bin/shortcuts"
+            task.arguments = ["run", "DND Toggle"]
+            try? task.run()
+            DispatchQueue.main.async {
+                self.isDNDActive.toggle()
+            }
+        }
+    }
+    
+    // MARK: - Clipboard
+    func refreshClipboard() {
+        let pasteboard = NSPasteboard.general
+        if pasteboard.changeCount != lastChangeCount {
+            lastChangeCount = pasteboard.changeCount
+            if let str = pasteboard.string(forType: .string) {
+                if !clipboardHistory.contains(str) {
+                    clipboardHistory.insert(str, at: 0)
+                    if clipboardHistory.count > 10 { clipboardHistory.removeLast() }
+                }
+            }
+        }
+    }
+    
+    func pasteFromHistory(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+    
+    // MARK: - Weather
+    func refreshWeather() {
+        let url = URL(string: "https://api.open-meteo.com/v1/forecast?latitude=-23.55&longitude=-46.63&current=temperature_2m&hourly=precipitation_probability&timezone=auto")!
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            guard let data = data else { return }
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let current = json["current"] as? [String: Any],
+               let temp = current["temperature_2m"] as? Double {
+                DispatchQueue.main.async {
+                    self.currentTemp = temp
+                    if let hourly = json["hourly"] as? [String: Any],
+                       let probs = hourly["precipitation_probability"] as? [Int] {
+                        self.precipitationProb = probs.first
+                    }
+                }
+            }
+        }.resume()
+    }
+    
+    // MARK: - Calendar
+    func refreshCalendar() {
+        eventStore.requestAccess(to: .event) { granted, error in
+            if granted {
+                let calendars = self.eventStore.calendars(for: .event)
+                let start = Date()
+                let end = Date().addingTimeInterval(86400 * 2) 
+                let predicate = self.eventStore.predicateForEvents(withStart: start, end: end, calendars: calendars)
+                let events = self.eventStore.events(matching: predicate).sorted { $0.startDate < $1.startDate }
+                
+                if let first = events.first {
+                    DispatchQueue.main.async {
+                        self.nextEvent = CalendarEvent(
+                            id: first.eventIdentifier,
+                            title: first.title,
+                            startDate: first.startDate,
+                            location: first.location,
+                            url: first.url
+                        )
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Pomodoro
+    func startPomodoro() {
+        isPomodoroRunning = true
+        setMode(.productivity)
+    }
+    
+    func pausePomodoro() {
+        isPomodoroRunning = false
+    }
+    
+    func resetPomodoro() {
+        isPomodoroRunning = false
+        pomodoroRemaining = (pomodoroMode == .work ? 25 : 5) * 60
+    }
+    
+    private func updatePomodoro() {
+        guard isPomodoroRunning else { return }
+        if pomodoroRemaining > 0 {
+            pomodoroRemaining -= 1
+        } else {
+            if pomodoroMode == .work {
+                pomodoroCycles += 1
+                pomodoroMode = .shortBreak
+                pomodoroRemaining = 5 * 60
+                showNotification("¡Enfoque terminado! Descanso.")
+            } else {
+                pomodoroMode = .work
+                pomodoroRemaining = 25 * 60
+                showNotification("¡Descanso terminado! A trabajar.")
+            }
+            isPomodoroRunning = false
+        }
+    }
+    
+    func formatPomodoroTime() -> String {
+        let mins = Int(pomodoroRemaining) / 60
+        let secs = Int(pomodoroRemaining) % 60
+        return String(format: "%02d:%02d", mins, secs)
+    }
+    
     // MARK: - Dimension Helpers
     
     func widthForMode(_ mode: IslandMode, isExpanded: Bool) -> CGFloat {
@@ -664,6 +852,7 @@ class IslandState: ObservableObject {
             case .music: return 380
             case .timer: return 320
             case .notes: return 350
+            case .productivity: return 420
             default: return 300
             }
         } else {
@@ -675,6 +864,7 @@ class IslandState: ObservableObject {
             case .volume: return 100
             case .timer: return 140
             case .notes: return 120
+            case .productivity: return 180
             }
         }
     }
@@ -688,12 +878,13 @@ class IslandState: ObservableObject {
             case .volume: return 60
             case .timer: return 180
             case .notes: return 450
+            case .productivity: return 480
             default: return 160
             }
         } else {
             switch mode {
             case .idle: return 1 
-            case .timer, .notes: return 35
+            case .timer, .notes, .productivity: return 35
             default: return 35
             }
         }

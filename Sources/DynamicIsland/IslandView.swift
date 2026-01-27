@@ -68,6 +68,12 @@ struct IslandView: View {
                 } else {
                     compactContent
                 }
+            case .productivity:
+                if state.isExpanded {
+                    expandedDashboardContent
+                } else {
+                    compactProductivityContent
+                }
             case .music:
                 if state.isExpanded {
                     expandedMusicContent
@@ -98,12 +104,41 @@ struct IslandView: View {
     // MARK: - Subviews
     
     var compactContent: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
+            if state.isMicMuted {
+                Image(systemName: "mic.slash.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(.red)
+            }
             Circle()
                 .fill(Color.green)
                 .frame(width: 6, height: 6)
             Text("Activa")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
+        }
+    }
+    
+    var compactProductivityContent: some View {
+        HStack(spacing: 10) {
+            if state.isPomodoroRunning {
+                HStack(spacing: 6) {
+                    Text("🍅")
+                    Text(state.formatPomodoroTime())
+                        .font(.system(size: 12, weight: .black, design: .monospaced))
+                        .foregroundColor(.red)
+                }
+            } else if state.isMicMuted {
+                HStack(spacing: 6) {
+                    Image(systemName: "mic.slash.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.red)
+                    Text("MUTE")
+                        .font(.system(size: 10, weight: .bold))
+                }
+            } else {
+                Text("Productividad")
+                    .font(.system(size: 11, weight: .bold))
+            }
         }
     }
     
@@ -648,6 +683,16 @@ struct IslandView: View {
                         notesWidget
                     } else if selected == "Settings" {
                         settingsWidget
+                    } else if selected == "Meeting" {
+                        meetingWidget
+                    } else if selected == "Clipboard" {
+                        clipboardWidget
+                    } else if selected == "Weather" {
+                        weatherWidget
+                    } else if selected == "Calendar" {
+                        calendarWidget
+                    } else if selected == "Pomodoro" {
+                        pomodoroWidget
                     } else {
                         recentInfoWidget(for: selected)
                     }
@@ -757,20 +802,20 @@ struct IslandView: View {
         switch cat {
         case "Favoritos":
             return [
-                AppData(id: "Spotify", name: "Spotify", icon: "play.fill", color: .green, badge: nil),
-                AppData(id: "Wsp", name: "WhatsApp", icon: "message.fill", color: .green, badge: state.wspBadge),
-                AppData(id: "Slack", name: "Slack", icon: "hash", color: .purple, badge: state.slackBadge),
-                AppData(id: "Finder", name: "Finder", icon: "folder.fill", color: .blue, badge: nil)
+                AppData(id: "Meeting", name: "Reunión", icon: "video.fill", color: .blue, badge: nil),
+                AppData(id: "Clipboard", name: "Papeles", icon: "doc.on.clipboard.fill", color: .orange, badge: state.clipboardHistory.isEmpty ? nil : "\(state.clipboardHistory.count)"),
+                AppData(id: "Pomodoro", name: "Pomodoro", icon: "tomato.fill", color: .red, badge: state.isPomodoroRunning ? "ON" : nil),
+                AppData(id: "Calendar", name: "Eventos", icon: "calendar", color: .red, badge: nil)
             ]
         case "Recientes":
             return [
-                AppData(id: "Chrome", name: "Google Chrome", icon: "network", color: .blue, badge: nil),
-                AppData(id: "Calendar", name: "Calendario", icon: "calendar", color: .red, badge: nil),
-                AppData(id: "Notes", name: "Notes", icon: "note.text", color: .yellow, badge: nil)
+                AppData(id: "Spotify", name: "Spotify", icon: "play.fill", color: .green, badge: nil),
+                AppData(id: "Notes", name: "Notas", icon: "note.text", color: .yellow, badge: nil),
+                AppData(id: "Finder", name: "Finder", icon: "folder.fill", color: .blue, badge: nil)
             ]
         case "Utilidades":
             return [
-                AppData(id: "Weather", name: "Clima", icon: "cloud.fill", color: .sky, badge: nil),
+                AppData(id: "Weather", name: "Clima", icon: "cloud.fill", color: .blue, badge: nil),
                 AppData(id: "Timer", name: "Timer", icon: "timer", color: .orange, badge: state.isTimerRunning ? "!" : nil),
                 AppData(id: "Settings", name: "Config", icon: "gearshape.fill", color: .gray, badge: nil)
             ]
@@ -1167,6 +1212,198 @@ struct IslandView: View {
         .padding()
         .background(Color.white.opacity(0.05))
         .cornerRadius(22)
+    }
+    
+    var meetingWidget: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("MODO REUNIÓN")
+                .font(.system(size: 9, weight: .black)).opacity(0.4)
+            
+            HStack(spacing: 20) {
+                Button(action: { state.toggleMic() }) {
+                    VStack(spacing: 8) {
+                        Image(systemName: state.isMicMuted ? "mic.slash.fill" : "mic.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(state.isMicMuted ? .red : .green)
+                        Text(state.isMicMuted ? "Muteado" : "Activo")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.05))
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+                
+                Button(action: { state.toggleDND() }) {
+                    VStack(spacing: 8) {
+                        Image(systemName: state.isDNDActive ? "moon.fill" : "moon.badge.clock.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(state.isDNDActive ? .purple : .white.opacity(0.3))
+                        Text(state.isDNDActive ? "DND: ON" : "DND: OFF")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.05))
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+    
+    var clipboardWidget: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("PORTAPAPELES")
+                .font(.system(size: 9, weight: .black)).opacity(0.4)
+            
+            if state.clipboardHistory.isEmpty {
+                Text("Copia algo para empezar...")
+                    .font(.system(size: 12, weight: .medium))
+                    .opacity(0.2)
+                    .padding(.vertical, 20)
+                    .frame(maxWidth: .infinity)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(state.clipboardHistory.prefix(3), id: \.self) { text in
+                        Button(action: { state.pasteFromHistory(text) }) {
+                            HStack {
+                                Text(text)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .lineLimit(1)
+                                Spacer()
+                                Image(systemName: "doc.on.doc").font(.system(size: 10)).opacity(0.3)
+                            }
+                            .padding(10)
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+    
+    var weatherWidget: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("CLIMA ACTUAL")
+                        .font(.system(size: 9, weight: .black)).opacity(0.4)
+                    Text(state.weatherCity)
+                        .font(.system(size: 14, weight: .bold))
+                }
+                Spacer()
+                if let temp = state.currentTemp {
+                    Text("\(Int(temp))°")
+                        .font(.system(size: 28, weight: .black, design: .rounded))
+                        .foregroundColor(state.accentColor)
+                }
+            }
+            
+            HStack {
+                Label("\(state.precipitationProb ?? 0)% lluvia", systemImage: "drop.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.blue)
+                Spacer()
+                Text("Hoy despejado")
+                    .font(.system(size: 11))
+                    .opacity(0.4)
+            }
+            .padding(10)
+            .background(Color.white.opacity(0.05))
+            .cornerRadius(10)
+        }
+    }
+    
+    var calendarWidget: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("PRÓXIMO EVENTO")
+                .font(.system(size: 9, weight: .black)).opacity(0.4)
+            
+            if let event = state.nextEvent {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(event.title)
+                        .font(.system(size: 16, weight: .black, design: .rounded))
+                    
+                    HStack {
+                        Image(systemName: "clock.fill").font(.system(size: 10))
+                        Text(event.startDate.formatted(date: .omitted, time: .shortened))
+                            .font(.system(size: 12, weight: .bold))
+                        
+                        if let loc = event.location {
+                            Text("•")
+                            Image(systemName: "location.fill").font(.system(size: 10))
+                            Text(loc).lineLimit(1)
+                        }
+                    }
+                    .font(.system(size: 11))
+                    .opacity(0.5)
+                    
+                    if let url = event.url {
+                        Button(action: { NSWorkspace.shared.open(url) }) {
+                            Text("Unirse a Reunión")
+                                .font(.system(size: 11, weight: .bold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .background(state.accentColor)
+                                .foregroundColor(.black)
+                                .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 5)
+                    }
+                }
+                .padding(15)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(18)
+            } else {
+                Text("No hay eventos próximos")
+                    .font(.system(size: 12, weight: .medium))
+                    .opacity(0.3)
+                    .padding(.vertical, 20)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+    
+    var pomodoroWidget: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("POMODORO")
+                        .font(.system(size: 9, weight: .black)).opacity(0.4)
+                    Text(state.pomodoroMode == .work ? "Enfoque" : "Descanso")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(state.pomodoroMode == .work ? .red : .green)
+                }
+                Spacer()
+                Text(state.formatPomodoroTime())
+                    .font(.system(size: 28, weight: .black, design: .monospaced))
+            }
+            
+            HStack(spacing: 12) {
+                Button(action: { state.isPomodoroRunning ? state.pausePomodoro() : state.startPomodoro() }) {
+                    Image(systemName: state.isPomodoroRunning ? "pause.fill" : "play.fill")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+                
+                Button(action: { state.resetPomodoro() }) {
+                    Image(systemName: "arrow.counterclockwise")
+                        .frame(width: 44)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
     
     var settingsWidget: some View {
