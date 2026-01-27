@@ -381,7 +381,42 @@ class IslandState: ObservableObject {
     }
     
     func refreshHeadphoneStatus() {
-        // Use system_profiler as it's the most reliable for AirPods/Beats
+        // FAST PATH: Check ioreg for battery levels first
+        let taskFast = Process()
+        taskFast.launchPath = "/usr/sbin/ioreg"
+        taskFast.arguments = ["-c", "AppleDeviceManagementHIDEventService", "-r", "-l"]
+        let pipeFast = Pipe()
+        taskFast.standardOutput = pipeFast
+        
+        do {
+            try taskFast.run()
+            let data = pipeFast.fileHandleForReading.readDataToEndOfFile()
+            if let output = String(data: data, encoding: .utf8), output.contains("BatteryPercent") {
+                let devices = output.components(separatedBy: "DeviceAddress")
+                for device in devices where device.contains("BatteryPercent") {
+                    let lines = device.components(separatedBy: .newlines)
+                    var battery: Int?
+                    var name: String?
+                    for line in lines {
+                        if line.contains("\"BatteryPercent\" =") {
+                            battery = Int(line.components(separatedBy: CharacterSet.decimalDigits.inverted).joined())
+                        }
+                        if line.contains("\"Product\" =") {
+                            name = line.components(separatedBy: "\"").dropFirst(3).first
+                        }
+                    }
+                    if let batt = battery {
+                        DispatchQueue.main.async {
+                            self.headphoneName = name ?? "Audífonos"
+                            self.headphoneBattery = batt
+                        }
+                        return
+                    }
+                }
+            }
+        } catch {}
+
+        // SLOW PATH: Use system_profiler for deeper info if ioreg missed it
         let task = Process()
         task.launchPath = "/usr/sbin/system_profiler"
         task.arguments = ["SPBluetoothDataType", "-json"]
@@ -406,16 +441,6 @@ class IslandState: ObservableObject {
                 
                 // Found a connected device, look for battery
                 if let batteryStr = details["device_batteryLevelMain"] as? String,
-                   let level = Int(batteryStr.replacingOccurrences(of: "%", with: "")) {
-                    DispatchQueue.main.async {
-                        self.headphoneName = deviceName
-                        self.headphoneBattery = level
-                    }
-                    return
-                }
-                
-                // Case/Left/Right support (AirPods)
-                if let batteryStr = details["device_batteryLevelCase"] as? String,
                    let level = Int(batteryStr.replacingOccurrences(of: "%", with: "")) {
                     DispatchQueue.main.async {
                         self.headphoneName = deviceName
