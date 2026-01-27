@@ -83,16 +83,30 @@ class IslandState: ObservableObject {
     }
     
     func musicControl(_ command: String) {
-        let appleMusicScript = "tell application \"Music\" to \(command)"
-        let spotifyScript = "tell application \"Spotify\" to \(command)"
+        let apps = NSWorkspace.shared.runningApplications
+        let isSpotifyRunning = apps.contains { $0.bundleIdentifier == "com.spotify.client" }
+        let isMusicRunning = apps.contains { $0.bundleIdentifier == "com.apple.Music" }
         
-        executeAppleScript(appleMusicScript)
-        executeAppleScript(spotifyScript)
+        // Target specifically the app that is currently active or running
+        // Using 'tell application id' is safer and doesn't launch the app if it's not open
+        if currentPlayer == "Spotify" && isSpotifyRunning {
+            executeAppleScript("tell application \"Spotify\" to \(command)")
+        } else if currentPlayer == "Music" && isMusicRunning {
+            executeAppleScript("tell application \"Music\" to \(command)")
+        } else {
+            // Priority fallback
+            if isSpotifyRunning {
+                executeAppleScript("tell application \"Spotify\" to \(command)")
+            } else if isMusicRunning {
+                executeAppleScript("tell application \"Music\" to \(command)")
+            }
+        }
+        
+        // Optimistic UI update
+        if command == "playpause" {
+            withAnimation { self.isPlaying.toggle() }
+        }
     }
-    
-    func playPause() { musicControl("playpause") }
-    func nextTrack() { musicControl("next track") }
-    func previousTrack() { musicControl("previous track") }
     
     func openAirPlay() {
         // Toggle the system AirPlay/Sound picker
@@ -254,3 +268,4 @@ class IslandState: ObservableObject {
         }
     }
 }
+```
