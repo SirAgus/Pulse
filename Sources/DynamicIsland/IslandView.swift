@@ -704,11 +704,10 @@ struct IslandView: View {
 
     var wifiSignalIndicator: some View {
         HStack(alignment: .bottom, spacing: 2) {
-            ForEach(0..<4) { i in
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(Color.white.opacity(i < 3 ? 0.9 : 0.3))
-                    .frame(width: 2.5, height: CGFloat((i + 1) * 2.5))
-            }
+            RoundedRectangle(cornerRadius: 1).fill(Color.white.opacity(0.9)).frame(width: 2.5, height: 2.5)
+            RoundedRectangle(cornerRadius: 1).fill(Color.white.opacity(0.9)).frame(width: 2.5, height: 5.0)
+            RoundedRectangle(cornerRadius: 1).fill(Color.white.opacity(0.9)).frame(width: 2.5, height: 7.5)
+            RoundedRectangle(cornerRadius: 1).fill(Color.white.opacity(0.3)).frame(width: 2.5, height: 10.0)
         }
     }
 
