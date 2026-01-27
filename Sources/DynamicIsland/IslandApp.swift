@@ -30,7 +30,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let button = statusItem?.button {
-            button.image = NSImage(systemName: "hand.tap.fill") // A nice icon for the island
+            button.image = NSImage(systemSymbolName: "hand.tap.fill", accessibilityDescription: "Island Control")
             button.action = #selector(statusItemClicked)
             button.target = self
         }
