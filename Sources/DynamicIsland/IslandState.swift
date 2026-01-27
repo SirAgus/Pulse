@@ -235,25 +235,17 @@ class IslandState: ObservableObject {
         let isSpotifyRunning = apps.contains { $0.bundleIdentifier == "com.spotify.client" }
         let isMusicRunning = apps.contains { $0.bundleIdentifier == "com.apple.Music" }
         
-        // Target specifically the app that is currently active or running
-        // Using 'tell application id' is safer and doesn't launch the app if it's not open
-        if currentPlayer == "Spotify" && isSpotifyRunning {
-            executeAppleScript("tell application \"Spotify\" to \(command)")
-        } else if currentPlayer == "Music" && isMusicRunning {
-            executeAppleScript("tell application \"Music\" to \(command)")
-        } else {
-            // Priority fallback
-            if isSpotifyRunning {
-                executeAppleScript("tell application \"Spotify\" to \(command)")
-            } else if isMusicRunning {
-                executeAppleScript("tell application \"Music\" to \(command)")
-            }
-        }
+        let targetApp = currentPlayer ?? (isSpotifyRunning ? "Spotify" : (isMusicRunning ? "Music" : nil))
         
-        // Optimistic UI update
+        guard let app = targetApp else { return }
+        
+        // Optimistic UI update for play/pause
         if command == "playpause" {
             withAnimation { self.isPlaying.toggle() }
         }
+        
+        let script = "tell application \"\(app)\" to \(command)"
+        executeAppleScript(script)
     }
     
     func playPause() { musicControl("playpause") }
@@ -448,20 +440,55 @@ class IslandState: ObservableObject {
     }
     
     private func launchApp(named: String) {
-        let appName = named == "Wsp" ? "WhatsApp" : named
-        let apps = NSWorkspace.shared.runningApplications
-        if let app = apps.first(where: { $0.localizedName == appName }) {
-            app.activate(options: .activateIgnoringOtherApps)
-        } else {
-            let path = "/Applications/\(appName).app"
-            if FileManager.default.fileExists(atPath: path) {
-                NSWorkspace.shared.open(URL(fileURLWithPath: path))
-            } else {
-                if let url = URL(string: "macappstore://showProducts?term=\(appName)") {
-                    NSWorkspace.shared.open(url)
-                }
+        let appName: String = {
+            switch named {
+            case "Wsp": return "WhatsApp"
+            case "Chrome": return "Google Chrome"
+            case "Weather": return "Clima"
+            case "Calendar": return "Calendario"
+            default: return named
+            }
+        }()
+        
+        let bundleID: String? = {
+            switch named {
+            case "Wsp": return "net.whatsapp.WhatsApp"
+            case "Spotify": return "com.spotify.client"
+            case "Slack": return "com.tinyspeck.slackmacgap"
+            case "Finder": return "com.apple.finder"
+            case "Chrome": return "com.google.Chrome"
+            case "Calendar": return "com.apple.iCal"
+            case "Weather": return "com.apple.weather"
+            case "Notes": return "com.apple.Notes"
+            default: return nil
+            }
+        }()
+        
+        if let bid = bundleID, let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid) {
+            NSWorkspace.shared.open(appURL)
+            return
+        }
+        
+        // Fallback to searching /Applications and /System/Applications
+        let searchPaths = ["/Applications", "/System/Applications"]
+        for path in searchPaths {
+            let appPath = "\(path)/\(appName).app"
+            if FileManager.default.fileExists(atPath: appPath) {
+                NSWorkspace.shared.open(URL(fileURLWithPath: appPath))
+                return
+            }
+            
+            // Try English name if searching for Clima/Calendario
+            let englishName = named // e.g. "Weather", "Calendar"
+            let engPath = "\(path)/\(englishName).app"
+            if FileManager.default.fileExists(atPath: engPath) {
+                NSWorkspace.shared.open(URL(fileURLWithPath: engPath))
+                return
             }
         }
+        
+        // Final fallback: try to run it
+        NSWorkspace.shared.launchApplication(appName)
     }
     
     private func startMockUpdates() {

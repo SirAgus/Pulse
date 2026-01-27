@@ -7,17 +7,16 @@ struct IslandView: View {
     
     var body: some View {
         ZStack {
-            // Main Island Background
+            // Main Island Background with Tap Gesture
             RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 4 : 15), style: .continuous)
                 .fill(state.islandColor)
+                .onTapGesture {
+                    state.toggleExpand()
+                }
             
             // Content Layer (Buttons, text, etc)
             contentForMode(state.mode)
                 .opacity(state.mode == .idle ? 0 : 1)
-        }
-        .contentShape(Rectangle()) // Make the whole frame clickable
-        .onTapGesture {
-            state.toggleExpand()
         }
         .frame(
             width: state.widthForMode(state.mode, isExpanded: state.isExpanded),
@@ -388,9 +387,7 @@ struct IslandView: View {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
                         ForEach(getAppsForCategory(state.activeCategory), id: \.id) { app in
                             Button(action: { 
-                                withAnimation {
-                                    state.selectedApp = (state.selectedApp == app.id) ? nil : app.id 
-                                }
+                                state.openApp(named: app.id)
                             }) {
                                 VStack(spacing: 10) {
                                     ZStack {

@@ -59,21 +59,29 @@ class MusicObserver {
     }
     
     private func updateDurations(for appName: String) {
-        let positionScript = "tell application \"\(appName)\" to get player position"
-        let durationScript = "tell application \"\(appName)\" to get duration of current track"
+        let posScript = "tell application \"\(appName)\" to get player position"
+        let durScript = "tell application \"\(appName)\" to get duration of current track"
         
-        let posStr = IslandState.shared.executeAppleScript(positionScript)
-        let durStr = IslandState.shared.executeAppleScript(durationScript)
+        let posStr = IslandState.shared.executeAppleScript(posScript)
+        let durStr = IslandState.shared.executeAppleScript(durScript)
         
         DispatchQueue.main.async {
+            // Position is always in seconds for both apps when using "player position"
             if let pRaw = posStr, let pd = Double(pRaw) {
                 IslandState.shared.trackPosition = pd
             }
             
             if let dRaw = durStr, let dd = Double(dRaw) {
-                // Spotify returns ms (e.g. 240000), Music returns seconds (e.g. 240)
-                let finalDur = dd > 10000 ? dd / 1000 : dd
-                IslandState.shared.trackDuration = max(1, finalDur)
+                // Spotify results are usually in ms if they are > 500
+                // Music results are in seconds
+                var finalDur = dd
+                if appName == "Spotify" && dd > 1000 {
+                    finalDur = dd / 1000.0
+                }
+                
+                if finalDur > 1 {
+                    IslandState.shared.trackDuration = finalDur
+                }
             }
         }
     }
