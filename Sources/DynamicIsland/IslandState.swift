@@ -14,6 +14,16 @@ class IslandState: ObservableObject {
     
     @Published var mode: IslandMode = .idle
     @Published var isExpanded: Bool = false
+    @Published var isDisabled: Bool = false {
+        didSet {
+            if isDisabled {
+                setMode(.idle)
+                isExpanded = false
+            } else {
+                setMode(.compact)
+            }
+        }
+    }
     @Published var isHovering: Bool = false {
         didSet {
             if isHovering {

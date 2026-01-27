@@ -15,13 +15,53 @@ struct DynamicIslandApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSPanel?
+    var statusItem: NSStatusItem?
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        setupStatusItem()
         setupIslandWindow()
         MusicObserver.shared.start()
         BatteryObserver.shared.start()
         VolumeObserver.shared.start()
+    }
+    
+    func setupStatusItem() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        
+        if let button = statusItem?.button {
+            button.image = NSImage(systemName: "hand.tap.fill") // A nice icon for the island
+            button.action = #selector(statusItemClicked)
+            button.target = self
+        }
+        
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Mostrar/Ocultar Isla", action: #selector(toggleIsland), keyEquivalent: "i"))
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(NSMenuItem(title: "Configuración", action: nil, keyEquivalent: ","))
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(NSMenuItem(title: "Salir", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        
+        statusItem?.menu = menu
+    }
+    
+    @objc func statusItemClicked() {
+        // This is called when the button is clicked but no menu is set
+        // Since we set a menu, this won't be called unless we handle it differently
+    }
+    
+    @objc func toggleIsland() {
+        IslandState.shared.isDisabled.toggle()
+        updateWindowVisibility()
+    }
+    
+    func updateWindowVisibility() {
+        if IslandState.shared.isDisabled {
+            window?.orderOut(nil)
+        } else {
+            window?.orderFront(nil)
+            recenterWindow()
+        }
     }
 
     func setupIslandWindow() {
@@ -56,8 +96,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Listen for state changes to resize the window snugly
         IslandState.shared.objectWillChange.sink { [weak self] in
+            guard let self = self else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                self?.recenterWindow()
+                self.recenterWindow()
+                self.updateWindowVisibility()
             }
         }.store(in: &cancellables)
         
