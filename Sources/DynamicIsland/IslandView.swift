@@ -644,63 +644,68 @@ struct IslandView: View {
 
     var dashboardStatusBar: some View {
         HStack {
-            // Left: Power & Charging
-            HStack(spacing: 6) {
-                Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.75")
-                    .foregroundColor(state.isCharging ? .green : .white)
-                Text("\(state.batteryLevel)%")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(Color.white.opacity(0.08))
-            .cornerRadius(12)
-            
+            statusBarBattery
             Spacer()
-            
-            // Middle: Device Status & Clock
-            VStack(spacing: 2) {
-                if let name = state.headphoneName, let battery = state.headphoneBattery {
-                    HStack(spacing: 4) {
-                        Image(systemName: "airpodspro")
-                            .font(.system(size: 10))
-                        Text("\(name) \(battery)%")
-                    }
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(.blue.opacity(0.8))
-                }
-                
-                if state.showClock {
-                    Text(Date(), style: .time)
-                        .font(.system(size: 15, weight: .black, design: .rounded))
-                }
-            }
-            
+            statusBarCenterInfo
             Spacer()
-            
-            // Right: Connectivity
-            HStack(spacing: 8) {
-                Text(state.wifiSSID)
-                    .font(.system(size: 10, weight: .bold))
-                    .opacity(0.6)
-                    .lineLimit(1)
-                    .frame(maxWidth: 70)
-                
-                HStack(alignment: .bottom, spacing: 2) {
-                    ForEach(0..<4) { i in
-                        RoundedRectangle(cornerRadius: 1)
-                            .fill(Color.white.opacity(i < 3 ? 0.9 : 0.3))
-                            .frame(width: 2.5, height: CGFloat((i + 1) * 2.5))
-                    }
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(Color.white.opacity(0.08))
-            .cornerRadius(12)
+            statusBarConnectivity
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 15)
+    }
+
+    var statusBarBattery: some View {
+        HStack(spacing: 6) {
+            Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.75")
+                .foregroundColor(state.isCharging ? .green : .white)
+            Text("\(state.batteryLevel)%")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Color.white.opacity(0.08))
+        .cornerRadius(12)
+    }
+
+    var statusBarCenterInfo: some View {
+        VStack(spacing: 2) {
+            if let name = state.headphoneName, let battery = state.headphoneBattery {
+                HStack(spacing: 4) {
+                    Image(systemName: "airpodspro")
+                        .font(.system(size: 10))
+                    Text("\(name) \(battery)%")
+                }
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(.blue.opacity(0.8))
+            }
+            
+            if state.showClock {
+                Text(Date(), style: .time)
+                    .font(.system(size: 15, weight: .black, design: .rounded))
+            }
+        }
+    }
+
+    var statusBarConnectivity: some View {
+        HStack(spacing: 8) {
+            Text(state.wifiSSID)
+                .font(.system(size: 10, weight: .bold))
+                .opacity(0.6)
+                .lineLimit(1)
+                .frame(maxWidth: 70)
+            
+            HStack(alignment: .bottom, spacing: 2) {
+                ForEach(0..<4) { i in
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(Color.white.opacity(i < 3 ? 0.9 : 0.3))
+                        .frame(width: 2.5, height: CGFloat((i + 1) * 2.5))
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Color.white.opacity(0.08))
+        .cornerRadius(12)
     }
 
     var dashboardCategorySelector: some View {
