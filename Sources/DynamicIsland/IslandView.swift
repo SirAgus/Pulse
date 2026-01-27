@@ -298,65 +298,74 @@ struct IslandView: View {
         VStack(spacing: 0) {
             dashboardStatusBar
             dashboardCategorySelector
-            Divider().background(Color.white.opacity(0.1))
-            dashboardAppGrid
-            dashboardContextualWidgets
-            Spacer()
+            
+            // App Content Area
+            VStack(spacing: 0) {
+                Divider().background(Color.white.opacity(0.1))
+                dashboardAppGrid
+                
+                if state.selectedApp != nil {
+                    dashboardContextualWidgets
+                }
+            }
+            .animation(.spring(), value: state.selectedApp)
+            
+            Spacer(minLength: 20)
+            
             dashboardFooter
         }
     }
 
     var dashboardAppGrid: some View {
         ScrollView {
-            VStack(spacing: 20) {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
-                    ForEach(getAppsForCategory(state.activeCategory), id: \.id) { app in
-                        Button(action: { 
-                            state.openApp(named: app.id)
-                        }) {
-                            VStack(spacing: 10) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                        .fill(state.selectedApp == app.id ? Color.white.opacity(0.1) : Color(white: 0.12))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                                .stroke(state.selectedApp == app.id ? app.color : Color.clear, lineWidth: 2)
-                                        )
-                                    
-                                    if let icon = getAppIcon(for: app.name) {
-                                        Image(nsImage: icon)
-                                            .resizable()
-                                            .frame(width: 32, height: 32)
-                                    } else {
-                                        Image(systemName: app.icon)
-                                            .font(.system(size: 24))
-                                            .foregroundColor(app.color)
-                                    }
-                                    
-                                    if let badge = app.badge, !badge.isEmpty {
-                                        Text(badge)
-                                            .font(.system(size: 10, weight: .black))
-                                            .foregroundColor(.white)
-                                            .frame(width: 20, height: 20)
-                                            .background(Color.red)
-                                            .clipShape(Circle())
-                                            .overlay(Circle().stroke(Color.black, lineWidth: 2))
-                                            .offset(x: 28, y: -28)
-                                    }
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 25) {
+                ForEach(getAppsForCategory(state.activeCategory), id: \.id) { app in
+                    Button(action: { 
+                        state.openApp(named: app.id)
+                    }) {
+                        VStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(state.selectedApp == app.id ? app.color.opacity(0.15) : Color.white.opacity(0.05))
+                                    .frame(width: 60, height: 60)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                            .stroke(state.selectedApp == app.id ? app.color : Color.white.opacity(0.1), lineWidth: 1.5)
+                                    )
+                                
+                                if let icon = getAppIcon(for: app.name) {
+                                    Image(nsImage: icon)
+                                        .resizable()
+                                        .frame(width: 40, height: 40)
+                                } else {
+                                    Image(systemName: app.icon)
+                                        .font(.system(size: 26))
+                                        .foregroundColor(app.color)
                                 }
                                 
-                                Text(app.name)
-                                    .font(.system(size: 10, weight: .bold))
-                                    .opacity(state.selectedApp == app.id ? 1.0 : 0.4)
+                                if let badge = app.badge, !badge.isEmpty {
+                                    Text(badge)
+                                        .font(.system(size: 10, weight: .black))
+                                        .foregroundColor(.white)
+                                        .padding(4)
+                                        .background(Color.red)
+                                        .clipShape(Circle())
+                                        .overlay(Circle().stroke(Color.black, lineWidth: 2))
+                                        .offset(x: 22, y: -22)
+                                }
                             }
+                            
+                            Text(app.name)
+                                .font(.system(size: 10, weight: state.selectedApp == app.id ? .black : .bold))
+                                .foregroundColor(state.selectedApp == app.id ? .white : .white.opacity(0.5))
                         }
-                        .buttonStyle(.plain)
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(25)
         }
-        .frame(height: 250)
+        .frame(maxHeight: 280) // Limit height but allow it to be smaller
     }
 
     var dashboardContextualWidgets: some View {
@@ -635,106 +644,98 @@ struct IslandView: View {
 
     var dashboardStatusBar: some View {
         HStack {
-            HStack(spacing: 8) {
-                HStack(spacing: 5) {
-                    Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.75")
-                        .foregroundColor(state.isCharging ? .green : .white)
-                    Text("\(state.batteryLevel)%")
-                        .font(.system(size: 11, weight: .black, design: .rounded))
-                        .foregroundColor(state.isCharging ? .green : .white)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.white.opacity(0.05))
-                .cornerRadius(20)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(state.isCharging ? Color.green.opacity(0.3) : Color.white.opacity(0.1), lineWidth: 1)
-                )
-                
-                Circle()
-                    .fill(Color.orange)
-                    .frame(width: 8, height: 8)
-                    .shadow(color: .orange.opacity(0.6), radius: 4)
-                
-                if let _ = state.headphoneName, let battery = state.headphoneBattery {
-                    HStack(spacing: 6) {
+            // Left: Power & Charging
+            HStack(spacing: 6) {
+                Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.75")
+                    .foregroundColor(state.isCharging ? .green : .white)
+                Text("\(state.batteryLevel)%")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Color.white.opacity(0.08))
+            .cornerRadius(12)
+            
+            Spacer()
+            
+            // Middle: Device Status & Clock
+            VStack(spacing: 2) {
+                if let name = state.headphoneName, let battery = state.headphoneBattery {
+                    HStack(spacing: 4) {
                         Image(systemName: "airpodspro")
-                            .font(.system(size: 14))
-                            .foregroundColor(.blue)
-                        Text("\(battery)%")
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.system(size: 10))
+                        Text("\(name) \(battery)%")
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(20)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.blue.opacity(0.8))
+                }
+                
+                if state.showClock {
+                    Text(Date(), style: .time)
+                        .font(.system(size: 15, weight: .black, design: .rounded))
                 }
             }
             
             Spacer()
             
-            if state.showClock {
-                Text(Date(), style: .time)
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                    .opacity(0.8)
-            }
-            
-            Spacer()
-            
+            // Right: Connectivity
             HStack(spacing: 8) {
                 Text(state.wifiSSID)
-                    .font(.system(size: 10, weight: .black))
-                    .opacity(0.5)
+                    .font(.system(size: 10, weight: .bold))
+                    .opacity(0.6)
                     .lineLimit(1)
-                    .frame(maxWidth: 60)
+                    .frame(maxWidth: 70)
                 
                 HStack(alignment: .bottom, spacing: 2) {
                     ForEach(0..<4) { i in
                         RoundedRectangle(cornerRadius: 1)
-                            .fill(Color.white.opacity(i < 3 ? 0.8 : 0.2))
-                            .frame(width: 2, height: CGFloat((i + 1) * 2))
+                            .fill(Color.white.opacity(i < 3 ? 0.9 : 0.3))
+                            .frame(width: 2.5, height: CGFloat((i + 1) * 2.5))
                     }
                 }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(20)
+            .padding(.vertical, 5)
+            .background(Color.white.opacity(0.08))
+            .cornerRadius(12)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 20)
-        .padding(.bottom, 25)
+        .padding(.vertical, 15)
     }
 
     var dashboardCategorySelector: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 20) {
             ForEach(state.categories, id: \.self) { cat in
                 Button(action: { 
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    withAnimation(.interpolatingSpring(stiffness: 300, damping: 25)) {
                         state.activeCategory = cat 
                     }
                 }) {
-                    VStack(spacing: 8) {
+                    VStack(spacing: 6) {
                         Text(cat.uppercased())
-                            .font(.system(size: 10, weight: state.activeCategory == cat ? .black : .bold, design: .rounded))
-                            .tracking(1.5)
+                            .font(.system(size: 11, weight: state.activeCategory == cat ? .black : .bold, design: .rounded))
+                            .tracking(1.2)
                             .foregroundColor(state.activeCategory == cat ? .white : .white.opacity(0.3))
-                            .frame(maxWidth: .infinity)
-                            .contentShape(Rectangle())
                         
-                        ZStack {
+                        // Underline indicator
+                        if state.activeCategory == cat {
                             RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.white)
-                                .frame(width: 24, height: 3)
-                                .opacity(state.activeCategory == cat ? 1 : 0)
+                                .fill(state.accentColor)
+                                .frame(width: 20, height: 3)
+                                .matchedGeometryEffect(id: "tab", in: animation)
+                        } else {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.clear)
+                                .frame(width: 20, height: 3)
                         }
                     }
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.bottom, 20)
+        .padding(.horizontal, 30)
+        .padding(.bottom, 15)
     }
     
     func getAppIcon(for appName: String) -> NSImage? {
