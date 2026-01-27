@@ -42,9 +42,9 @@ class IslandState: ObservableObject {
     
     // Mock Notifications/Messages
     @Published var selectedApp: String? = nil
-    @Published var lastWhatsAppMessages: [String] = ["Juan: ¿Vienes a la reunión?", "Mamá: Te dejé comida en el horno"]
-    @Published var lastSlackMessages: [String] = ["Lucas: Tenemos deploy en 5 min", "Sara: El diseño está aprobado ✅"]
-    @Published var lastSpotifyMessages: [String] = ["Playlist: 'Descubrimiento semanal'", "Podcast: 'The Joe Rogan Experience'"]
+    @Published var lastWhatsAppMessages: [String] = []
+    @Published var lastSlackMessages: [String] = []
+    @Published var lastSpotifyMessages: [String] = []
     
     @Published var wspBadge: String = ""
     @Published var slackBadge: String = ""
@@ -122,6 +122,9 @@ class IslandState: ObservableObject {
         if let badge = executeAppleScript(wspScript), !badge.isEmpty {
             wspBadge = badge
             lastWhatsAppMessages = ["Tienes \(badge) mensajes nuevos en WhatsApp"]
+        } else {
+            wspBadge = ""
+            lastWhatsAppMessages = []
         }
         
         // Slack Badge check
@@ -129,6 +132,9 @@ class IslandState: ObservableObject {
         if let badge = executeAppleScript(slackScript), !badge.isEmpty {
             slackBadge = badge
             lastSlackMessages = ["Tienes \(badge) notificaciones en Slack"]
+        } else {
+            slackBadge = ""
+            lastSlackMessages = []
         }
     }
     

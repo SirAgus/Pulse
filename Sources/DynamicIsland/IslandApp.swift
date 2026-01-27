@@ -75,19 +75,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let width = state.widthForMode(state.mode, isExpanded: state.isExpanded)
         let height = state.heightForMode(state.mode, isExpanded: state.isExpanded)
         
-        // Use a snug window size to avoid blocking clicks on other screen areas
-        // 300 is the minimum width to capture hover comfortably around the notch
-        let actualWidth = max(width, 300)
-        let actualHeight = max(height, 60) + 30 // +30 buffer for notch offset
+        // Final pixel-perfect centering math
+        // We use the EXACT size of the island for the window to avoid blocking clicks
+        let actualWidth = width
+        let actualHeight = height
         
         let x = screenFrame.origin.x + (screenFrame.width - actualWidth) / 2
         
-        // Fixed top anchor point (5px below screen top)
-        let topOffset: CGFloat = 5
-        let y = screenFrame.maxY - actualHeight - topOffset
+        // Position below notch (usually 35-40px from top)
+        let topMargin: CGFloat = 35
+        let y = screenFrame.maxY - actualHeight - topMargin
         
-        // No animation for window frame resize to prevent "jitter"
-        // SwiftUI will animate the internal content
         window.setFrame(NSRect(x: x, y: y, width: actualWidth, height: actualHeight), display: true, animate: false)
     }
 }

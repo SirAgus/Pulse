@@ -6,13 +6,7 @@ struct IslandView: View {
     @Namespace private var animation
     
     var body: some View {
-        ZStack(alignment: .top) {
-            // Hit Area for Hover (Invisible but captures mouse)
-            Color.black.opacity(0.001)
-                .frame(width: 450, height: 80)
-                .onHover { hovering in
-                    state.isHovering = hovering
-                }
+        ZStack { // Remove fixed alignment, use natural centering
             
             // Main Island Container
             RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 4 : 15), style: .continuous)
@@ -21,10 +15,8 @@ struct IslandView: View {
                     width: state.widthForMode(state.mode, isExpanded: state.isExpanded),
                     height: state.heightForMode(state.mode, isExpanded: state.isExpanded)
                 )
-                .padding(.top, 25) // Offset to push it exactly below the notch
                 .overlay(
                     contentForMode(state.mode)
-                        .padding(.top, 25) // Sync content position
                         .opacity(state.mode == .idle ? 0 : 1)
                 )
                 .shadow(color: .clear, radius: 0)
@@ -36,6 +28,9 @@ struct IslandView: View {
                         NSApplication.shared.terminate(nil)
                     }
                 }
+        }
+        .onHover { hovering in
+            state.isHovering = hovering
         }
         .animation(.interpolatingSpring(stiffness: 300, damping: 25), value: state.mode)
         .animation(.interpolatingSpring(stiffness: 300, damping: 25), value: state.isExpanded)
