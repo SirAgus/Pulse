@@ -608,6 +608,9 @@ struct IslandView: View {
             }
             .padding(.horizontal, 5)
         }
+        .padding(22)
+    }
+
     var dashboardStatusBar: some View {
         HStack {
             HStack(spacing: 8) {
