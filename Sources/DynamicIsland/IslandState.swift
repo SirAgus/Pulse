@@ -142,7 +142,7 @@ class IslandState: ObservableObject {
         }
         
         // Timer to refresh status (Headphones, WiFi, etc)
-        Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+        Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
             self?.refreshHeadphoneStatus()
             self?.refreshWiFiStatus()
         }
@@ -389,45 +389,61 @@ class IslandState: ObservableObject {
     }
     
     func refreshHeadphoneStatus() {
+        // Use system_profiler as it's the most reliable for AirPods/Beats
         let task = Process()
-        task.launchPath = "/usr/sbin/ioreg"
-        task.arguments = ["-c", "AppleDeviceManagementHIDEventService", "-r", "-l"]
+        task.launchPath = "/usr/sbin/system_profiler"
+        task.arguments = ["SPBluetoothDataType", "-json"]
         let pipe = Pipe()
         task.standardOutput = pipe
-        task.launch()
         
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        if let output = String(data: data, encoding: .utf8) {
-            let devices = output.components(separatedBy: "DeviceAddress")
-            for device in devices {
-                if device.contains("BatteryPercent") {
-                    let lines = device.components(separatedBy: .newlines)
-                    var battery: Int?
-                    var name: String?
-                    
-                    for line in lines {
-                        if line.contains("\"BatteryPercent\" =") {
-                            battery = Int(line.components(separatedBy: CharacterSet.decimalDigits.inverted).joined())
-                        }
-                        if line.contains("\"Product\" =") {
-                            name = line.components(separatedBy: "\"").dropFirst(3).first
-                        }
-                    }
-                    
-                    if let batt = battery {
-                        DispatchQueue.main.async {
-                            self.headphoneBattery = batt
-                            self.headphoneName = name ?? "Audífonos"
-                        }
-                        return
-                    }
+        task.terminationHandler = { [weak self] _ in
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let self = self,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let controllers = json["SPBluetoothDataType"] as? [[String: Any]],
+                  let devices = controllers.first?["device_title"] as? [[String: Any]] else {
+                return
+            }
+            
+            for wrapper in devices {
+                guard let deviceName = wrapper.keys.first,
+                      let details = wrapper[deviceName] as? [String: Any],
+                      details["device_connected"] as? String == "ATT_CONNECTED" || details["device_connected"] as? String == "true" else {
+                    continue
                 }
+                
+                // Found a connected device, look for battery
+                if let batteryStr = details["device_batteryLevelMain"] as? String,
+                   let level = Int(batteryStr.replacingOccurrences(of: "%", with: "")) {
+                    DispatchQueue.main.async {
+                        self.headphoneName = deviceName
+                        self.headphoneBattery = level
+                    }
+                    return
+                }
+                
+                // Case/Left/Right support (AirPods)
+                if let batteryStr = details["device_batteryLevelCase"] as? String,
+                   let level = Int(batteryStr.replacingOccurrences(of: "%", with: "")) {
+                    DispatchQueue.main.async {
+                        self.headphoneName = deviceName
+                        self.headphoneBattery = level
+                    }
+                    return
+                }
+            }
+            
+            // If we reach here, no connected battery device found
+            DispatchQueue.main.async {
+                self.headphoneName = nil
+                self.headphoneBattery = nil
             }
         }
         
-        DispatchQueue.main.async {
-            self.headphoneName = nil
-            self.headphoneBattery = nil
+        do {
+            try task.run()
+        } catch {
+            print("Failed to run system_profiler: \(error)")
         }
     }
     

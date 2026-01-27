@@ -311,6 +311,21 @@ struct IslandView: View {
                         .fill(Color.orange)
                         .frame(width: 8, height: 8)
                         .shadow(color: .orange.opacity(0.6), radius: 4)
+                    
+                    // Connected Device (AirPods etc)
+                    if let headphone = state.headphoneName, let battery = state.headphoneBattery {
+                        HStack(spacing: 6) {
+                            Image(systemName: "airpodspro")
+                                .font(.system(size: 14))
+                                .foregroundColor(.blue)
+                            Text("\(battery)%")
+                                .font(.system(size: 11, weight: .bold))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(20)
+                    }
                 }
                 
                 Spacer()
@@ -558,27 +573,29 @@ struct IslandView: View {
                 .buttonStyle(.plain)
                 
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(LinearGradient(colors: [Color(hex: "FF8A00"), Color(hex: "FF0000")], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 50, height: 50)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(LinearGradient(colors: [state.accentColor.opacity(0.4), state.accentColor.opacity(0.1)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 60, height: 60)
+                        .shadow(color: .black.opacity(0.3), radius: 10, y: 5)
                     
                     if let icon = getAppIcon(for: state.currentPlayer) {
                         Image(nsImage: icon)
                             .resizable()
-                            .frame(width: 32, height: 32)
+                            .frame(width: 38, height: 38)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
                     } else {
                         Image(systemName: "music.note")
                             .foregroundColor(.white)
-                            .font(.system(size: 20))
+                            .font(.system(size: 24))
                     }
                 }
                 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(state.songTitle)
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .font(.system(size: 18, weight: .black, design: .rounded))
                     Text(state.artistName)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .opacity(0.6)
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .opacity(0.5)
                 }
                 
                 Spacer()
