@@ -13,7 +13,9 @@ struct IslandView: View {
                 .fill(state.islandColor)
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    state.toggleExpand()
+                    if !state.isExpanded {
+                        state.toggleExpand()
+                    }
                 }
                 .zIndex(0)
             

@@ -252,13 +252,22 @@ class IslandState: ObservableObject {
     }
     
     func toggleExpand() {
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0)) {
-            isExpanded.toggle()
-        }
-        
         if isExpanded {
+            collapse()
+        } else {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0)) {
+                isExpanded = true
+            }
             cancelCollapseTimer()
-        } else if !isHovering {
+        }
+    }
+    
+    func collapse() {
+        guard isExpanded else { return }
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0)) {
+            isExpanded = false
+        }
+        if !isHovering {
             startCollapseTimer()
         }
     }

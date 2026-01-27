@@ -24,6 +24,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         MusicObserver.shared.start()
         BatteryObserver.shared.start()
         VolumeObserver.shared.start()
+        setupClickOutsideMonitor()
+    }
+    
+    private func setupClickOutsideMonitor() {
+        // Global monitor catches clicks on other apps/desktop
+        NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            DispatchQueue.main.async {
+                if IslandState.shared.isExpanded {
+                    IslandState.shared.collapse()
+                }
+            }
+        }
     }
     
     func setupStatusItem() {
