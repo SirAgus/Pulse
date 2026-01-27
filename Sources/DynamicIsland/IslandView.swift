@@ -6,23 +6,18 @@ struct IslandView: View {
     @Namespace private var animation
     
     var body: some View {
-        ZStack { // Remove fixed alignment, use natural centering
-            
-            // Detection Layer (Background)
-            RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 4 : 15), style: .continuous)
-                .fill(Color.black.opacity(0.001)) // Invisible but clickable
-                .onTapGesture {
-                    state.toggleExpand()
-                }
-            
-            // Main Island Container
+        ZStack {
+            // Main Island Background
             RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 4 : 15), style: .continuous)
                 .fill(state.islandColor)
-                .overlay(
-                    contentForMode(state.mode)
-                        .opacity(state.mode == .idle ? 0 : 1)
-                )
-                .allowsHitTesting(true) // Ensure children buttons work
+            
+            // Content Layer (Buttons, text, etc)
+            contentForMode(state.mode)
+                .opacity(state.mode == .idle ? 0 : 1)
+        }
+        .contentShape(Rectangle()) // Make the whole frame clickable
+        .onTapGesture {
+            state.toggleExpand()
         }
         .frame(
             width: state.widthForMode(state.mode, isExpanded: state.isExpanded),
@@ -864,7 +859,10 @@ struct IslandView: View {
                 
                 Divider().background(Color.white.opacity(0.1))
                 
-                Toggle(isOn: $state.showClock) {
+                Toggle(isOn: Binding(
+                    get: { state.showClock },
+                    set: { state.showClock = $0 }
+                )) {
                     Text("Mostrar Reloj")
                         .font(.system(size: 12, weight: .bold))
                 }
