@@ -227,7 +227,7 @@ struct IslandView: View {
         HStack(spacing: 8) {
             Image(systemName: "note.text")
                 .foregroundColor(.yellow)
-            Text(state.notes.first ?? "Notas")
+            Text(state.notes.first?.content ?? "Notas")
                 .font(.system(size: 11, weight: .medium))
                 .lineLimit(1)
                 .frame(maxWidth: 80)
@@ -402,7 +402,7 @@ struct IslandView: View {
 
     var dashboardDevicesGrid: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: 12) {
                 // Main Computer info
                 deviceRow(
                     name: "MacBook Pro",
@@ -412,113 +412,149 @@ struct IslandView: View {
                     isCharging: state.isCharging
                 )
                 
-                // Headphones info
+                // Bluetooth Header
+                HStack {
+                    Text("BLUETOOTH")
+                        .font(.system(size: 10, weight: .black))
+                        .opacity(0.3)
+                    Spacer()
+                    Circle()
+                        .fill(state.headphoneName != nil ? Color.blue : Color.gray.opacity(0.3))
+                        .frame(width: 6, height: 6)
+                }
+                .padding(.horizontal, 10)
+                .padding(.top, 5)
+
+                // Headphones info with Volume Control
                 if let name = state.headphoneName, let battery = state.headphoneBattery {
-                    deviceRow(
-                        name: name,
-                        detail: "Audífonos Conectados",
-                        icon: "airpodspro",
-                        battery: battery,
-                        isCharging: false
-                    )
+                    VStack(spacing: 0) {
+                        deviceRow(
+                            name: name,
+                            detail: "Conectado • \(battery)%",
+                            icon: "airpodspro",
+                            battery: battery,
+                            isCharging: false
+                        )
+                        
+                        Divider().background(Color.white.opacity(0.05)).padding(.horizontal, 15)
+                        
+                        // Volume Control (More compact)
+                        HStack(spacing: 10) {
+                            Image(systemName: "speaker.wave.2.fill")
+                                .font(.system(size: 9))
+                                .opacity(0.3)
+                            
+                            Slider(value: $state.volume, in: 0...1) { _ in
+                                state.refreshVolume()
+                            }
+                            .accentColor(.blue)
+                            .controlSize(.mini)
+                            
+                            Text("\(Int(state.volume * 100))%")
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                                .frame(width: 25)
+                                .opacity(0.5)
+                        }
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 8)
+                    }
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(14)
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.05), lineWidth: 1))
                 } else {
                     HStack {
-                        Image(systemName: "headphones.circle.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(.white.opacity(0.2))
-                        VStack(alignment: .leading) {
-                            Text("Sin Audífonos")
-                                .font(.system(size: 14, weight: .bold))
-                            Text("No se detectan dispositivos BT")
-                                .font(.system(size: 12))
-                                .opacity(0.4)
-                        }
+                        Image(systemName: "headphones")
+                            .font(.system(size: 20))
+                            .foregroundColor(.white.opacity(0.1))
+                        Text("Buscando audífonos...")
+                            .font(.system(size: 12, weight: .bold))
+                            .opacity(0.2)
                         Spacer()
                     }
-                    .padding()
-                    .background(Color.white.opacity(0.03))
-                    .cornerRadius(18)
+                    .padding(.horizontal, 15)
+                    .padding(.vertical, 12)
+                    .background(Color.black.opacity(0.2))
+                    .cornerRadius(14)
                 }
                 
-                // WiFi Info
-                HStack {
-                    ZStack {
-                        Circle()
-                            .fill(Color.blue.opacity(0.1))
-                            .frame(width: 44, height: 44)
-                        Image(systemName: "wifi")
-                            .foregroundColor(.blue)
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
+                // WiFi Info (More compact)
+                HStack(spacing: 12) {
+                    Image(systemName: "wifi")
+                        .font(.system(size: 14))
+                        .foregroundColor(.blue.opacity(0.8))
+                        .frame(width: 32, height: 32)
+                        .background(Color.blue.opacity(0.1))
+                        .clipShape(Circle())
+                    
+                    VStack(alignment: .leading, spacing: 0) {
                         Text(state.wifiSSID)
-                            .font(.system(size: 14, weight: .bold))
-                        Text("Red Wi-Fi Actual")
-                            .font(.system(size: 12))
-                            .opacity(0.4)
+                            .font(.system(size: 13, weight: .bold))
+                        Text("Wi-Fi")
+                            .font(.system(size: 10))
+                            .opacity(0.3)
                     }
                     Spacer()
-                    Text("Conectado")
-                        .font(.system(size: 10, weight: .black))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.green.opacity(0.2))
-                        .foregroundColor(.green)
-                        .cornerRadius(8)
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 6, height: 6)
                 }
-                .padding()
-                .background(Color.white.opacity(0.03))
-                .cornerRadius(18)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Color.white.opacity(0.04))
+                .cornerRadius(14)
             }
-            .padding(25)
+            .padding(.horizontal, 15)
+            .padding(.vertical, 15)
         }
         .frame(maxHeight: 280)
     }
 
     func deviceRow(name: String, detail: String, icon: String, battery: Int, isCharging: Bool) -> some View {
-        HStack(spacing: 15) {
+        HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color.white.opacity(0.05))
-                    .frame(width: 48, height: 48)
+                    .frame(width: 36, height: 36)
                 Image(systemName: icon)
-                    .font(.system(size: 20))
+                    .font(.system(size: 16))
                     .foregroundColor(state.accentColor)
             }
             
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 0) {
                 Text(name)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                 Text(detail)
-                    .font(.system(size: 11))
-                    .opacity(0.5)
+                    .font(.system(size: 10))
+                    .opacity(0.4)
             }
             
             Spacer()
             
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 if isCharging {
                     Image(systemName: "bolt.fill")
                         .foregroundColor(.green)
-                        .font(.system(size: 10))
+                        .font(.system(size: 9))
                 }
                 
                 Text("\(battery)%")
-                    .font(.system(size: 14, weight: .black, design: .rounded))
+                    .font(.system(size: 12, weight: .black, design: .rounded))
                 
                 ZStack(alignment: .leading) {
                     Capsule()
                         .fill(Color.white.opacity(0.1))
-                        .frame(width: 35, height: 16)
+                        .frame(width: 25, height: 12)
                     Capsule()
                         .fill(battery < 20 ? Color.red : (isCharging ? Color.green : Color.white))
-                        .frame(width: CGFloat(battery) * 0.35, height: 16)
+                        .frame(width: CGFloat(battery) * 0.25, height: 12)
                 }
             }
         }
-        .padding()
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(18)
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.05), lineWidth: 1))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.04))
+        .cornerRadius(14)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.05), lineWidth: 1))
     }
 
     var dashboardContextualWidgets: some View {
@@ -865,38 +901,42 @@ struct IslandView: View {
     }
 
     var dashboardCategorySelector: some View {
-        HStack(spacing: 20) {
+        HStack(spacing: 0) {
             ForEach(state.categories, id: \.self) { cat in
                 Button(action: { 
                     withAnimation(.interpolatingSpring(stiffness: 300, damping: 25)) {
                         state.activeCategory = cat 
                     }
                 }) {
-                    VStack(spacing: 6) {
-                        Text(cat.uppercased())
-                            .font(.system(size: 11, weight: state.activeCategory == cat ? .black : .bold, design: .rounded))
-                            .tracking(1.2)
-                            .foregroundColor(state.activeCategory == cat ? .white : .white.opacity(0.3))
+                    VStack(spacing: 8) {
+                        Image(systemName: categoryIcon(for: cat))
+                            .font(.system(size: 16, weight: state.activeCategory == cat ? .bold : .medium))
+                            .foregroundColor(state.activeCategory == cat ? state.accentColor : .white.opacity(0.3))
+                            .frame(height: 24)
                         
-                        // Underline indicator
-                        if state.activeCategory == cat {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(state.accentColor)
-                                .frame(width: 20, height: 3)
-                                .matchedGeometryEffect(id: "tab", in: animation)
-                        } else {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.clear)
-                                .frame(width: 20, height: 3)
-                        }
+                        // Small dot indicator instead of underline for icons
+                        Circle()
+                            .fill(state.activeCategory == cat ? state.accentColor : Color.clear)
+                            .frame(width: 4, height: 4)
+                            .matchedGeometryEffect(id: "tab", in: animation)
                     }
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 30)
+        .padding(.horizontal, 20)
         .padding(.bottom, 15)
+    }
+
+    func categoryIcon(for cat: String) -> String {
+        switch cat {
+        case "Favoritos": return "star.fill"
+        case "Recientes": return "clock.fill"
+        case "Dispositivos": return "macbook.and.iphone"
+        case "Utilidades": return "square.grid.2x2.fill"
+        default: return "circle"
+        }
     }
     
     func getAppIcon(for appName: String) -> NSImage? {
