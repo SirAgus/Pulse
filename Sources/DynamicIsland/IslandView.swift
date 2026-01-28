@@ -334,20 +334,22 @@ struct IslandView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                if state.editingNoteIndex != nil {
-                    Button(action: { withAnimation(.spring()) { state.editingNoteIndex = nil } }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "chevron.left")
-                            Text("Mis Notas")
+                Group {
+                    if state.editingNoteIndex != nil {
+                        Button(action: { withAnimation(.spring()) { state.editingNoteIndex = nil } }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "chevron.left")
+                                Text("Mis Notas")
+                            }
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.yellow)
                         }
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.yellow)
-                    }
-                } else {
-                    Button(action: { state.showDashboard() }) {
-                        Image(systemName: "chevron.left.circle.fill")
-                            .font(.system(size: 22))
-                            .opacity(0.3)
+                    } else {
+                        Button(action: { state.showDashboard() }) {
+                            Image(systemName: "chevron.left.circle.fill")
+                                .font(.system(size: 22))
+                                .opacity(0.3)
+                        }
                     }
                 }
                 .buttonStyle(.plain)
@@ -356,7 +358,7 @@ struct IslandView: View {
                 
                 Text(state.editingNoteIndex != nil ? "EDITOR DE NOTAS" : "MIS NOTAS")
                     .font(.system(size: 10, weight: .black))
-                    .letterSpacing(1)
+                    .kerning(1)
                     .opacity(0.4)
                 
                 Spacer()
@@ -390,7 +392,7 @@ struct IslandView: View {
                             .padding(.vertical, 8)
                             .background(state.accentColor)
                             .foregroundColor(.black)
-                            .cornerRadius(10, style: .continuous)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -1028,7 +1030,6 @@ struct IslandView: View {
                 }
         )
     }
-    }
 
     var dashboardStatusBar: some View {
         HStack {
@@ -1495,6 +1496,72 @@ struct IslandView: View {
         }
     }
     
+    var islandColorPicker: some View {
+        HStack {
+            Label("Color Fondo", systemImage: "paintpalette.fill")
+                .font(.system(size: 12, weight: .bold))
+            Spacer()
+            HStack(spacing: 8) {
+                ForEach([Color.black, Color(hex: "1a1a1a"), Color(hex: "001a33"), Color(hex: "1a0033")], id: \.self) { color in
+                    Button(action: { state.islandColor = color }) {
+                        Circle()
+                            .fill(color)
+                            .frame(width: 20, height: 20)
+                            .overlay(
+                                Circle()
+                                    .stroke(state.islandColor == color ? Color.white : Color.white.opacity(0.2), lineWidth: state.islandColor == color ? 2 : 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    var backgroundStylePicker: some View {
+        HStack {
+            Label("Estilo", systemImage: "square.stack.3d.up.fill")
+                .font(.system(size: 12, weight: .bold))
+            Spacer()
+            HStack(spacing: 6) {
+                ForEach(BackgroundStyle.allCases, id: \.self) { style in
+                    Button(action: { state.backgroundStyle = style }) {
+                        Text(style.rawValue)
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(state.backgroundStyle == style ? state.accentColor : Color.white.opacity(0.1))
+                            .foregroundColor(state.backgroundStyle == style ? .black : .white)
+                            .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    var accentColorPicker: some View {
+        HStack {
+            Label("Color Acento", systemImage: "sparkles")
+                .font(.system(size: 12, weight: .bold))
+            Spacer()
+            HStack(spacing: 8) {
+                ForEach([Color.orange, Color.green, Color.blue, Color.purple], id: \.self) { color in
+                    Button(action: { state.accentColor = color }) {
+                        Circle()
+                            .fill(color)
+                            .frame(width: 20, height: 20)
+                            .overlay(
+                                Circle()
+                                    .stroke(state.accentColor == color ? Color.white : Color.clear, lineWidth: 2)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
     var settingsWidget: some View {
         VStack(alignment: .leading, spacing: 15) {
             Text("CONFIGURACIÓN DE LA ISLA")
@@ -1502,68 +1569,9 @@ struct IslandView: View {
                 .opacity(0.4)
             
             VStack(spacing: 12) {
-                // Color de la Isla
-                HStack {
-                    Label("Color Fondo", systemImage: "paintpalette.fill")
-                        .font(.system(size: 12, weight: .bold))
-                    Spacer()
-                    HStack(spacing: 8) {
-                        ForEach([Color.black, Color(hex: "1a1a1a"), Color(hex: "001a33"), Color(hex: "1a0033")], id: \.self) { color in
-                            Button(action: { state.islandColor = color }) {
-                                Circle()
-                                    .fill(color)
-                                    .frame(width: 20, height: 20)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(state.islandColor == color ? Color.white : Color.white.opacity(0.2), lineWidth: state.islandColor == color ? 2 : 1)
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                
-                // Estilo de Fondo
-                HStack {
-                    Label("Estilo", systemImage: "square.stack.3d.up.fill")
-                        .font(.system(size: 12, weight: .bold))
-                    Spacer()
-                    HStack(spacing: 6) {
-                        ForEach(BackgroundStyle.allCases, id: \.self) { style in
-                            Button(action: { state.backgroundStyle = style }) {
-                                Text(style.rawValue)
-                                    .font(.system(size: 9, weight: .bold))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(state.backgroundStyle == style ? state.accentColor : Color.white.opacity(0.1))
-                                    .foregroundColor(state.backgroundStyle == style ? .black : .white)
-                                    .cornerRadius(6)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                
-                // Color Acento
-                HStack {
-                    Label("Color Acento", systemImage: "sparkles")
-                        .font(.system(size: 12, weight: .bold))
-                    Spacer()
-                    HStack(spacing: 8) {
-                        ForEach([Color.orange, Color.green, Color.blue, Color.purple], id: \.self) { color in
-                            Button(action: { state.accentColor = color }) {
-                                Circle()
-                                    .fill(color)
-                                    .frame(width: 20, height: 20)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(state.accentColor == color ? Color.white : Color.clear, lineWidth: 2)
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
+                islandColorPicker
+                backgroundStylePicker
+                accentColorPicker
                 
                 Divider().background(Color.white.opacity(0.1))
                 
@@ -1639,14 +1647,13 @@ struct AppIcon: View {
         .buttonStyle(.plain)
     }
 }
-    
-    func getIcon(for appName: String) -> NSImage? {
-        let path = "/Applications/\(appName).app"
-        if FileManager.default.fileExists(atPath: path) {
-            return NSWorkspace.shared.icon(forFile: path)
-        }
-        return nil
+
+func getIcon(for appName: String) -> NSImage? {
+    let path = "/Applications/\(appName).app"
+    if FileManager.default.fileExists(atPath: path) {
+        return NSWorkspace.shared.icon(forFile: path)
     }
+    return nil
 }
 
 struct MessageRow: View {
