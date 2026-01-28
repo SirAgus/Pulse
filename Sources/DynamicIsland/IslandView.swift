@@ -1,9 +1,11 @@
 import SwiftUI
 import AppKit
+import AVFoundation
 
 struct IslandView: View {
     @EnvironmentObject var state: IslandState
     @Namespace private var animation
+    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
         ZStack {
@@ -596,10 +598,7 @@ struct IslandView: View {
                 }) {
                     VStack(spacing: 4) {
                         Image(systemName: tab.1)
-                            .font(.system(size: 16, weight: .medium))
-                        Text(tab.0)
-                            .font(.system(size: 8, weight: .black))
-                            .textCase(.uppercase)
+                            .font(.system(size: 20, weight: .bold))
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
@@ -637,56 +636,203 @@ struct IslandView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 30)
+            .padding(.bottom, 20)
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: state.activeCategory)
+        .onAppear {
+            // Ensure window becomes key when interacting if it wasn't
+            if let window = NSApp.windows.first(where: { $0 is IslandWindow }) {
+                window.makeKey()
+            }
+        }
     }
     
     // MARK: - Apps Tab
     var dashboardAppsView: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
-            ForEach(getAppsForCategory("apps"), id: \.id) { app in
-                VStack(spacing: 8) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(Color(white: 0.1))
-                            .frame(width: 56, height: 56)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                            )
-                            .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
-                        
-                        Image(systemName: app.icon)
-                            .font(.system(size: 22))
-                            .foregroundColor(app.color)
-                        
-                        // Badge
-                        if let badge = app.badge, !badge.isEmpty {
-                            Text(badge)
-                                .font(.system(size: 9, weight: .black))
-                                .foregroundColor(.white)
-                                .frame(width: 18, height: 18)
-                                .background(Color.red)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.black, lineWidth: 2))
-                                .offset(x: 20, y: -20)
+        VStack(spacing: 24) {
+            // Smart Widgets Section
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("WIDGETS SELECCIONADOS")
+                        .font(.system(size: 8, weight: .black))
+                        .foregroundColor(.white.opacity(0.3))
+                    Spacer()
+                    Button(action: { state.showWidgetPicker.toggle() }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus.circle.fill")
+                            Text("AÑADIR")
+                        }
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(state.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 4)
+                
+                if state.showWidgetPicker {
+                    widgetSelectionPicker
+                        .transition(.scale.combined(with: .opacity))
+                }
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(state.pinnedWidgets, id: \.self) { widgetId in
+                            Group {
+                                switch widgetId {
+                                case "cpu":
+                                    systemWidget(title: "CPU", value: "\(Int(state.cpuUsage))%", icon: "cpu", color: .green, progress: state.cpuUsage/100)
+                                case "ram":
+                                    systemWidget(title: "RAM", value: "\(Int(state.ramUsage))%", icon: "memorychip", color: .blue, progress: state.ramUsage/100)
+                                case "disk":
+                                    systemWidget(title: "DISCO", value: "42GB", icon: "internaldrive", color: .purple, progress: 0.65)
+                                case "weather":
+                                    miniWidget(icon: "cloud.sun.fill", color: .cyan, title: "CLIMA", value: "\(Int(state.currentTemp ?? 0))°")
+                                case "calendar":
+                                    miniWidget(icon: "calendar", color: .pink, title: "HOY", value: state.nextEvent?.title ?? "Libre")
+                                case "camera":
+                                    miniWidget(icon: "camera.fill", color: state.accentColor, title: "CAM", value: "LIVE")
+                                default:
+                                    EmptyView()
+                                }
+                            }
+                            .onTapGesture {
+                                withAnimation { state.toggleWidget(widgetId) }
+                            }
                         }
                     }
-                    .scaleEffect(state.selectedApp == app.id ? 0.95 : 1.0)
-                    
-                    Text(app.name)
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.white.opacity(0.5))
+                    .padding(.vertical, 4)
                 }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.2)) {
-                        state.openApp(named: app.id)
+            }
+            
+            // Apps Grid
+            VStack(alignment: .leading, spacing: 12) {
+                Text("ACCESO RÁPIDO")
+                    .font(.system(size: 8, weight: .black))
+                    .foregroundColor(.white.opacity(0.3))
+                    .padding(.horizontal, 4)
+                
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+                    ForEach(getAppsForCategory("apps"), id: \.id) { app in
+                        VStack(spacing: 8) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(Color.white.opacity(0.05))
+                                    .frame(width: 50, height: 50)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                                    )
+                                
+                                Image(systemName: app.icon)
+                                    .font(.system(size: 20))
+                                    .foregroundColor(app.color)
+                                
+                                if let badge = app.badge, !badge.isEmpty {
+                                    Text(badge)
+                                        .font(.system(size: 8, weight: .black))
+                                        .foregroundColor(.white)
+                                        .frame(width: 16, height: 16)
+                                        .background(Color.red)
+                                        .clipShape(Circle())
+                                        .offset(x: 18, y: -18)
+                                }
+                            }
+                            
+                            Text(app.name)
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(.white.opacity(0.4))
+                        }
+                        .onTapGesture {
+                            state.openApp(named: app.id)
+                        }
                     }
                 }
             }
         }
+    }
+    
+    var widgetSelectionPicker: some View {
+        HStack(spacing: 10) {
+            let options = [
+                ("cpu", "cpu", Color.green),
+                ("ram", "memorychip", Color.blue),
+                ("weather", "cloud.sun.fill", Color.cyan),
+                ("calendar", "calendar", Color.pink),
+                ("camera", "camera.fill", state.accentColor),
+                ("disk", "internaldrive", Color.purple)
+            ]
+            
+            ForEach(options, id: \.0) { opt in
+                Button(action: { 
+                    withAnimation { state.toggleWidget(opt.0) }
+                }) {
+                    ZStack {
+                        Circle()
+                            .fill(state.pinnedWidgets.contains(opt.0) ? opt.2 : Color.white.opacity(0.1))
+                            .frame(width: 32, height: 32)
+                        
+                        Image(systemName: opt.1)
+                            .font(.system(size: 14))
+                            .foregroundColor(state.pinnedWidgets.contains(opt.0) ? .black : .white)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(10)
+        .background(Color.white.opacity(0.05))
+        .clipShape(Capsule())
+    }
+    
+    func miniWidget(icon: String, color: Color, title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 10))
+                    .foregroundColor(color)
+                Text(title)
+                    .font(.system(size: 8, weight: .black))
+                    .foregroundColor(.white.opacity(0.4))
+            }
+            
+            Text(value)
+                .font(.system(size: 11, weight: .black))
+                .lineLimit(1)
+        }
+        .frame(width: 80, alignment: .leading)
+        .padding(10)
+        .background(Color.white.opacity(0.03))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+    
+    func systemWidget(title: String, value: String, icon: String, color: Color, progress: Double) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 10))
+                    .foregroundColor(color)
+                Text(title)
+                    .font(.system(size: 8, weight: .black))
+                    .foregroundColor(.white.opacity(0.4))
+            }
+            
+            Text(value)
+                .font(.system(size: 14, weight: .black))
+            
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.white.opacity(0.1))
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color)
+                        .frame(width: geo.size.width * progress)
+                }
+            }
+            .frame(height: 3)
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.03))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
     
     // MARK: - Widgets Tab (Nook)
@@ -694,41 +840,71 @@ struct IslandView: View {
         VStack(spacing: 12) {
             HStack(spacing: 12) {
                 // Weather Widget
-                widgetCard(icon: "cloud.sun.fill", iconColor: .cyan, title: "CLIMA", mainText: "24°", subText: "Soleado")
+                widgetCard(
+                    icon: "cloud.sun.fill", 
+                    iconColor: .cyan, 
+                    title: state.weatherCity.uppercased(), 
+                    mainText: "\(Int(state.currentTemp ?? 0))°", 
+                    subText: state.precipitationProb.map { "Lluvia: \($0)%" } ?? "Más detalles"
+                )
                 
                 // Calendar Widget  
-                widgetCard(icon: "calendar", iconColor: .pink, title: "HOY", mainText: "Sin eventos", subText: "Próximo")
+                widgetCard(
+                    icon: "calendar", 
+                    iconColor: .pink, 
+                    title: "PRÓXIMO", 
+                    mainText: state.nextEvent?.title ?? "Sin eventos", 
+                    subText: state.nextEvent?.startDate.formatted(date: .omitted, time: .shortened) ?? "Calendario"
+                )
             }
             
             // Camera Preview Widget
-            HStack {
-                ZStack {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(state.accentColor)
+                    Text("VISTA PREVIA DE CÁMARA")
+                        .font(.system(size: 9, weight: .black))
+                    Spacer()
                     Circle()
-                        .fill(Color.black)
-                        .frame(width: 36, height: 36)
-                        .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
-                    Image(systemName: "eye")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white)
+                        .fill(.red)
+                        .frame(width: 6, height: 6)
+                        .shadow(color: .red, radius: 4)
                 }
+                .padding(.horizontal, 4)
                 
-                Text("PREVISUALIZAR CÁMARA")
-                    .font(.system(size: 10, weight: .black))
-                    .textCase(.uppercase)
-                
-                Spacer()
-                
-                Text("ACTIVO")
-                    .font(.system(size: 9, weight: .black))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.1))
-                    .clipShape(Capsule())
+                ZStack {
+                    CameraPreview()
+                        .frame(height: 140)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        )
+                    
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Text("Facetime HD Camera")
+                                .font(.system(size: 8, weight: .bold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.black.opacity(0.5))
+                                .clipShape(Capsule())
+                            Spacer()
+                        }
+                        .padding(8)
+                    }
+                }
             }
-            .padding(16)
+            .padding(12)
             .background(Color.white.opacity(0.03))
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.05), lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
+            )
         }
     }
     
@@ -1176,6 +1352,55 @@ struct IslandView: View {
             
             settingsRow(icon: "hand.tap.fill", title: "Gestos", value: "Habilitados", color: .blue)
             
+            // Weather Location Input
+            VStack(alignment: .leading, spacing: 8) {
+                Text("UBICACIÓN CLIMA")
+                    .font(.system(size: 9, weight: .black))
+                    .opacity(0.4)
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Escribe una ciudad y presiona Enter...", text: $state.weatherCity, onCommit: {
+                        state.updateWeatherLocation(cityName: state.weatherCity)
+                        isSearchFocused = false
+                    })
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13, weight: .bold))
+                    .focused($isSearchFocused)
+                    .padding(15)
+                    .background(Color.white.opacity(isSearchFocused ? 0.08 : 0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(isSearchFocused ? state.accentColor : Color.clear, lineWidth: 2)
+                    )
+                    .onTapGesture {
+                        isSearchFocused = true
+                        // Robust window activation
+                        if let window = NSApp.windows.first(where: { $0 is IslandWindow }) {
+                            window.makeKeyAndOrderFront(nil)
+                            NSApp.activate(ignoringOtherApps: true)
+                        }
+                    }
+                    
+                    HStack {
+                        Spacer()
+                        Button(action: { 
+                            state.updateWeatherLocation(cityName: state.weatherCity)
+                            isSearchFocused = false
+                        }) {
+                            Text("BUSCAR UBICACIÓN")
+                                .font(.system(size: 10, weight: .black))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(state.accentColor)
+                                .foregroundColor(.black)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            
             Button(action: { state.collapse() }) {
                 HStack {
                     Image(systemName: "xmark.circle.fill")
@@ -1567,10 +1792,8 @@ struct IslandView: View {
         switch cat {
         case "apps":
             return [
-                AppData(id: "Meeting", name: "Reunión", icon: "video.fill", color: .blue, badge: nil),
                 AppData(id: "Finder", name: "Finder", icon: "folder.fill", color: .orange, badge: "!"),
                 AppData(id: "Notes", name: "Notas", icon: "note.text", color: .yellow, badge: nil),
-                AppData(id: "Calendar", name: "Eventos", icon: "calendar", color: .red, badge: nil),
                 AppData(id: "Chrome", name: "Chrome", icon: "globe", color: .blue, badge: nil)
             ]
         case "Utilidades":
@@ -2656,6 +2879,34 @@ struct VisualEffectView: NSViewRepresentable {
     }
 }
 // MARK: - Animated Components
+
+// MARK: - Camera Support
+struct CameraPreview: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        let session = AVCaptureSession()
+        session.sessionPreset = .medium
+        
+        guard let device = AVCaptureDevice.default(for: .video),
+              let input = try? AVCaptureDeviceInput(device: device) else {
+            return view
+        }
+        
+        if session.canAddInput(input) {
+            session.addInput(input)
+        }
+        
+        let previewLayer = AVCaptureVideoPreviewLayer(session: session)
+        previewLayer.videoGravity = .resizeAspectFill
+        view.layer = previewLayer
+        view.wantsLayer = true
+        
+        session.startRunning()
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
 
 struct MusicWaveform: View {
     var isPlaying: Bool

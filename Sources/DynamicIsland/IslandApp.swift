@@ -192,7 +192,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.async {
             self.recenterWindow()
             if IslandState.shared.isExpanded {
-                self.window?.orderFrontRegardless()
+                self.window?.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
             }
         }
     }

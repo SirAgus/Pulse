@@ -138,6 +138,25 @@ class IslandState: ObservableObject {
     @Published var isMicMuted: Bool = false
     @Published var isDNDActive: Bool = false
     
+    // Customization
+    @Published var pinnedWidgets: [String] = ["eisenhower", "weather", "cpu", "ram"]
+    @Published var showWidgetPicker: Bool = false
+    
+    // Eisenhower Matrix
+    struct TaskItem: Identifiable, Hashable {
+        let id = UUID()
+        var title: String
+        var category: String // "urgent_important", "not_urgent_important", etc.
+    }
+    
+    @Published var tasks: [TaskItem] = [
+        TaskItem(title: "Limpiar casa", category: "not_urgent_not_important"),
+        TaskItem(title: "Buscar trabajo", category: "not_urgent_not_important"),
+        TaskItem(title: "Aprender algo nuevo", category: "not_urgent_not_important"),
+        TaskItem(title: "Cocinar", category: "not_urgent_not_important"),
+        TaskItem(title: "Aprender conducir", category: "not_urgent_not_important")
+    ]
+    
     // Clipboard
     @Published var clipboardHistory: [String] = []
     private var lastChangeCount: Int = 0
@@ -148,6 +167,12 @@ class IslandState: ObservableObject {
     @Published var weatherCity: String = "São Paulo"
     @Published var lat: Double = -23.55
     @Published var lon: Double = -46.63
+    
+    // System Monitor
+    @Published var cpuUsage: Double = 0
+    @Published var ramUsage: Double = 0
+    @Published var memoryTotal: Double = 16.0 // GB
+    @Published var memoryUsed: Double = 8.0 // GB
     
     // Calendar
     struct CalendarEvent: Identifiable {
@@ -225,6 +250,21 @@ class IslandState: ObservableObject {
         refreshWeather()
         refreshCalendar()
         refreshMicStatus()
+        
+        // System Performance Monitor
+        Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.refreshSystemPerformance()
+        }
+    }
+    
+    func refreshSystemPerformance() {
+        // Mock CPU/RAM for now, as real access needs specific permissions or complex shell parsing
+        // We'll use a realistic random walk for the UI demo
+        DispatchQueue.main.async {
+            self.cpuUsage = (self.cpuUsage * 0.7) + (Double.random(in: 5...45) * 0.3)
+            self.memoryUsed = (self.memoryUsed * 0.95) + (Double.random(in: 4...12) * 0.05)
+            self.ramUsage = (self.memoryUsed / self.memoryTotal) * 100
+        }
     }
     
     func refreshWiFiStatus() {
@@ -871,7 +911,9 @@ class IslandState: ObservableObject {
     }
     
     func refreshWeather() {
-        let url = URL(string: "https://api.open-meteo.com/v1/forecast?latitude=\(lat)&longitude=\(lon)&current=temperature_2m&hourly=precipitation_probability&timezone=auto")!
+        let urlString = "https://api.open-meteo.com/v1/forecast?latitude=\(lat)&longitude=\(lon)&current=temperature_2m&hourly=precipitation_probability&timezone=auto"
+        guard let url = URL(string: urlString) else { return }
+        
         URLSession.shared.dataTask(with: url) { data, _, _ in
             guard let data = data else { return }
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -883,6 +925,31 @@ class IslandState: ObservableObject {
                        let probs = hourly["precipitation_probability"] as? [Int] {
                         self.precipitationProb = probs.first
                     }
+                }
+            }
+        }.resume()
+    }
+    
+    func updateWeatherLocation(cityName: String) {
+        let encodedCity = cityName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let urlString = "https://geocoding-api.open-meteo.com/v1/search?name=\(encodedCity)&count=1&language=es&format=json"
+        guard let url = URL(string: urlString) else { return }
+        
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            guard let data = data else { return }
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let results = json["results"] as? [[String: Any]],
+               let first = results.first {
+                
+                let newLat = first["latitude"] as? Double ?? self.lat
+                let newLon = first["longitude"] as? Double ?? self.lon
+                let name = first["name"] as? String ?? cityName
+                
+                DispatchQueue.main.async {
+                    self.lat = newLat
+                    self.lon = newLon
+                    self.weatherCity = name
+                    self.refreshWeather()
                 }
             }
         }.resume()
@@ -1000,6 +1067,13 @@ class IslandState: ObservableObject {
             case .volume: return 37
             case .timer, .notes, .productivity: return 37
             }
+        }
+    }
+    func toggleWidget(_ id: String) {
+        if pinnedWidgets.contains(id) {
+            pinnedWidgets.removeAll { $0 == id }
+        } else {
+            pinnedWidgets.append(id)
         }
     }
 }
