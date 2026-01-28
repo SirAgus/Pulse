@@ -295,7 +295,9 @@ class IslandState: ObservableObject {
         let script = "tell application \"Notes\" to make new note with properties {body:\"Nueva Nota de Dynamic Island\"}"
         executeAppleScript(script)
         refreshNotes()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+        setMode(.notes)
+        isExpanded = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             self.editingNoteIndex = 0
         }
     }

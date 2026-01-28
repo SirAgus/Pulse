@@ -32,7 +32,9 @@ struct IslandView: View {
                 .contentShape(Rectangle())
                 .onTapGesture {
                     if !state.isExpanded {
-                        state.toggleExpand()
+                        withAnimation(.spring()) {
+                            state.toggleExpand()
+                        }
                     }
                 }
                 .shadow(color: Color.black.opacity(state.backgroundStyle == .solid ? 0 : 0.3), radius: 20, x: 0, y: 10)
@@ -116,6 +118,14 @@ struct IslandView: View {
             Text("Activa")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if !state.isExpanded {
+                withAnimation(.spring()) {
+                    state.toggleExpand()
+                }
+            }
+        }
     }
     
     var compactProductivityContent: some View {
@@ -138,6 +148,14 @@ struct IslandView: View {
             } else {
                 Text("Productividad")
                     .font(.system(size: 11, weight: .bold))
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if !state.isExpanded {
+                withAnimation(.spring()) {
+                    state.toggleExpand()
+                }
             }
         }
     }
@@ -176,7 +194,6 @@ struct IslandView: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
             
-            // Waveform / Headphone Battery on the right
             HStack(spacing: 6) {
                 if let battery = state.headphoneBattery {
                     HStack(spacing: 3) {
@@ -189,23 +206,28 @@ struct IslandView: View {
                     .padding(.trailing, 4)
                 }
                 
-                HStack(alignment: .center, spacing: 2) {
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(Color.orange)
-                        .frame(width: 2, height: state.isPlaying ? 8 : 4)
-                        .offset(y: state.isPlaying ? -1 : 0)
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(Color.orange)
-                        .frame(width: 2, height: state.isPlaying ? 14 : 4)
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(Color.orange)
-                        .frame(width: 2, height: state.isPlaying ? 10 : 4)
-                        .offset(y: state.isPlaying ? 1 : 0)
-                }
-                .animation(.easeInOut(duration: 0.4).repeatForever(), value: state.isPlaying)
+                MusicWaveform(isPlaying: state.isPlaying, color: .orange, barCount: 3, maxHeight: 12)
             }
         }
         .padding(.horizontal, 15)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if !state.isExpanded {
+                withAnimation(.spring()) {
+                    state.toggleExpand()
+                }
+            }
+        }
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 20, coordinateSpace: .local)
+                .onEnded { value in
+                    if value.translation.width < -40 {
+                        state.nextTrack()
+                    } else if value.translation.width > 40 {
+                        state.previousTrack()
+                    }
+                }
+        )
     }
     
     // MARK: - Native Timer Views
@@ -217,6 +239,14 @@ struct IslandView: View {
                 .font(.system(size: 14, weight: .bold))
             Text(formatTime(state.timerRemaining))
                 .font(.system(size: 12, weight: .bold, design: .monospaced))
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if !state.isExpanded {
+                withAnimation(.spring()) {
+                    state.toggleExpand()
+                }
+            }
         }
     }
     
@@ -288,116 +318,156 @@ struct IslandView: View {
                 .lineLimit(1)
                 .frame(maxWidth: 80)
         }
-    }
-    
-    var expandedNotesContent: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Button(action: { state.showDashboard() }) {
-                    Image(systemName: "chevron.left.circle.fill")
-                        .font(.system(size: 20))
-                        .opacity(0.3)
-                }
-                .buttonStyle(.plain)
-                Spacer()
-                Text("MIS NOTAS")
-                    .font(.system(size: 10, weight: .black))
-                    .opacity(0.4)
-                Spacer()
-                HStack(spacing: 15) {
-                    Button(action: { state.openNotesApp() }) {
-                        Image(systemName: "arrow.up.right.circle.fill")
-                            .font(.system(size: 20))
-                            .opacity(0.3)
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Button(action: { state.addNote() }) {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundColor(.yellow)
-                            .font(.system(size: 20))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            
-            ScrollView {
-                if state.isSyncingNotes && state.notes.isEmpty {
-                    VStack {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                        Text("Sincronizando con iCloud...")
-                            .font(.system(size: 10))
-                            .opacity(0.4)
-                    }
-                    .padding(.top, 40)
-                } else {
-                            VStack(alignment: .leading, spacing: 14) {
-                                ForEach(0..<state.notes.count, id: \.self) { index in
-                                    HStack(spacing: 15) {
-                                        if state.editingNoteIndex == index {
-                                            VStack(alignment: .leading, spacing: 8) {
-                                                TextField("Escribe aquí...", text: Binding(
-                                                    get: { state.notes[safe: index]?.content ?? "" },
-                                                    set: { state.notes[index].content = $0 }
-                                                ), onCommit: {
-                                                    state.saveNote(at: index, newContent: state.notes[index].content)
-                                                    state.editingNoteIndex = nil
-                                                })
-                                                .textFieldStyle(.plain)
-                                                .font(.system(size: 16, weight: .semibold))
-                                                .foregroundColor(.yellow)
-                                                
-                                                Rectangle()
-                                                    .fill(Color.yellow.opacity(0.3))
-                                                    .frame(height: 1)
-                                            }
-                                        } else {
-                                            VStack(alignment: .leading, spacing: 6) {
-                                                Text(state.notes[index].content)
-                                                    .font(.system(size: 15, weight: .bold))
-                                                    .foregroundColor(.white)
-                                                    .lineLimit(3)
-                                                
-                                                HStack {
-                                                    Image(systemName: "note.text")
-                                                        .font(.system(size: 10))
-                                                    Text("Nota de Sistema")
-                                                        .font(.system(size: 10))
-                                                }
-                                                .opacity(0.4)
-                                            }
-                                            .onTapGesture { 
-                                                withAnimation {
-                                                    state.editingNoteIndex = index 
-                                                }
-                                            }
-                                            
-                                            Spacer()
-                                            
-                                            Button(action: { state.deleteNote(at: index) }) {
-                                                Image(systemName: "trash.circle.fill")
-                                                    .font(.system(size: 22))
-                                                    .foregroundColor(.red.opacity(0.6))
-                                            }
-                                            .buttonStyle(.plain)
-                                        }
-                                    }
-                                    .padding(18)
-                                    .background(Color.white.opacity(0.04))
-                                    .cornerRadius(20)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 20)
-                                            .stroke(state.editingNoteIndex == index ? Color.yellow.opacity(0.3) : Color.white.opacity(0.05), lineWidth: 1)
-                                    )
-                                }
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 30)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if !state.isExpanded {
+                withAnimation(.spring()) {
+                    state.toggleExpand()
                 }
             }
         }
-        .padding(20)
+    }
+    
+    var expandedNotesContent: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                if state.editingNoteIndex != nil {
+                    Button(action: { withAnimation(.spring()) { state.editingNoteIndex = nil } }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.left")
+                            Text("Mis Notas")
+                        }
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.yellow)
+                    }
+                } else {
+                    Button(action: { state.showDashboard() }) {
+                        Image(systemName: "chevron.left.circle.fill")
+                            .font(.system(size: 22))
+                            .opacity(0.3)
+                    }
+                }
+                .buttonStyle(.plain)
+                
+                Spacer()
+                
+                Text(state.editingNoteIndex != nil ? "EDITOR DE NOTAS" : "MIS NOTAS")
+                    .font(.system(size: 10, weight: .black))
+                    .letterSpacing(1)
+                    .opacity(0.4)
+                
+                Spacer()
+                
+                if state.editingNoteIndex == nil {
+                    HStack(spacing: 16) {
+                        Button(action: { state.openNotesApp() }) {
+                            Image(systemName: "arrow.up.right.square.fill")
+                                .font(.system(size: 20))
+                                .opacity(0.3)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Button(action: { state.addNote() }) {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(.yellow)
+                                .font(.system(size: 20))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } else {
+                    Button(action: {
+                        if let index = state.editingNoteIndex {
+                            state.saveNote(at: index, newContent: state.notes[index].content)
+                            withAnimation(.spring()) { state.editingNoteIndex = nil }
+                        }
+                    }) {
+                        Text("LISTO")
+                            .font(.system(size: 10, weight: .black))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(state.accentColor)
+                            .foregroundColor(.black)
+                            .cornerRadius(10, style: .continuous)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 25)
+            .padding(.top, 25)
+            .padding(.bottom, 20)
+            
+            if let index = state.editingNoteIndex {
+                // PREMIUM Full screen editor
+                TextEditor(text: Binding(
+                    get: { state.notes[safe: index]?.content ?? "" },
+                    set: { state.notes[index].content = $0 }
+                ))
+                .font(.system(size: 17, weight: .medium, design: .rounded))
+                .foregroundColor(.white)
+                .scrollContentBackground(.hidden)
+                .padding(25)
+                .background(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .fill(Color.white.opacity(0.04))
+                        .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).stroke(Color.white.opacity(0.05), lineWidth: 1))
+                )
+                .padding(.horizontal, 22)
+                .padding(.bottom, 25)
+                .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+            } else {
+                // List View
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        if state.isSyncingNotes && state.notes.isEmpty {
+                            VStack(spacing: 15) {
+                                ProgressView().scaleEffect(0.8)
+                                Text("Conectando con iCloud...").font(.system(size: 12, weight: .bold)).opacity(0.4)
+                            }.padding(.top, 60).frame(maxWidth: .infinity)
+                        } else {
+                            ForEach(state.notes.indices, id: \.self) { index in
+                                Button(action: { withAnimation(.spring()) { state.editingNoteIndex = index } }) {
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        Text(state.notes[index].content)
+                                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                                            .foregroundColor(.white)
+                                            .lineLimit(3)
+                                            .multilineTextAlignment(.leading)
+                                        
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "icloud.fill").font(.system(size: 9))
+                                            Text("SINCRONIZADO").font(.system(size: 8, weight: .black))
+                                            Spacer()
+                                            Image(systemName: "chevron.right").font(.system(size: 10)).opacity(0.3)
+                                        }
+                                        .opacity(0.3)
+                                    }
+                                    .padding(22)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.white.opacity(0.03))
+                                    .cornerRadius(25, style: .continuous)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 25, style: .continuous)
+                                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button(role: .destructive) {
+                                        state.deleteNote(at: index)
+                                    } label: {
+                                        Label("Eliminar", systemImage: "trash")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.bottom, 20)
+                }
+                .transition(.asymmetric(insertion: .move(edge: .leading).combined(with: .opacity), removal: .move(edge: .trailing).combined(with: .opacity)))
+            }
+        }
     }
     
     var expandedDashboardContent: some View {
@@ -801,137 +871,161 @@ struct IslandView: View {
     }
 
     var expandedMusicContent: some View {
-        VStack(spacing: 18) {
-            HStack(spacing: 15) {
+        VStack(spacing: 22) {
+            // Top Section: Info
+            HStack(spacing: 16) {
                 Button(action: { state.showDashboard() }) {
                     Image(systemName: "chevron.left.circle.fill")
-                        .font(.system(size: 22))
-                        .opacity(0.3)
+                        .font(.system(size: 24))
+                        .foregroundStyle(.secondary)
+                        .symbolRenderingMode(.hierarchical)
                 }
                 .buttonStyle(.plain)
                 
                 ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(LinearGradient(colors: [state.accentColor.opacity(0.4), state.accentColor.opacity(0.1)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 60, height: 60)
-                        .shadow(color: .black.opacity(0.3), radius: 10, y: 5)
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(state.accentColor.opacity(0.15))
+                        .frame(width: 64, height: 64)
                     
                     if let artwork = state.trackArtwork {
                         Image(nsImage: artwork)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(width: 60, height: 60)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                    } else if let icon = getAppIcon(for: state.currentPlayer) {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .frame(width: 38, height: 38)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .frame(width: 64, height: 64)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .shadow(color: state.accentColor.opacity(0.3), radius: 10, y: 5)
                     } else {
                         Image(systemName: "music.note")
-                            .foregroundColor(.white)
                             .font(.system(size: 24))
+                            .foregroundStyle(state.accentColor)
                     }
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(state.songTitle)
-                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .lineLimit(1)
                     Text(state.artistName)
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .opacity(0.5)
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
                 
                 Spacer()
                 
-                Image(systemName: "waveform")
-                    .foregroundColor(.orange)
-                    .font(.system(size: 18, weight: .bold))
+                MusicWaveform(isPlaying: state.isPlaying, color: state.accentColor, barCount: 4, maxHeight: 20)
             }
+            .padding(.top, 10)
             
-            VStack(spacing: 6) {
+            // Middle Section: Progress
+            VStack(spacing: 8) {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule()
-                            .fill(Color.white.opacity(0.15))
-                            .frame(height: 5)
+                            .fill(Color.white.opacity(0.1))
+                            .frame(height: 6)
                         Capsule()
-                            .fill(Color.white)
-                            .frame(width: max(0, min(geo.size.width, (geo.size.width * (state.trackPosition / max(1, state.trackDuration))))), height: 5)
+                            .fill(LinearGradient(colors: [state.accentColor, state.accentColor.opacity(0.7)], startPoint: .leading, endPoint: .trailing))
+                            .frame(width: max(0, min(geo.size.width, (geo.size.width * (state.trackPosition / max(1, state.trackDuration))))), height: 6)
+                            .shadow(color: state.accentColor.opacity(0.3), radius: 4)
                     }
                 }
-                .frame(height: 5)
+                .frame(height: 6)
                 
                 HStack {
                     Text(formatTime(state.trackPosition))
                     Spacer()
                     Text("-" + formatTime(max(0, state.trackDuration - state.trackPosition)))
                 }
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .opacity(0.4)
-            }
-            .padding(.top, 5)
-            
-            if state.isPlaying {
-                HStack(spacing: 3) {
-                    ForEach(0..<12) { _ in
-                        RoundedRectangle(cornerRadius: 1)
-                            .fill(Color.orange)
-                            .frame(width: 3, height: CGFloat.random(in: 4...20))
-                    }
-                }
-                .frame(height: 25)
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundStyle(.secondary)
             }
             
+            // Bottom Section: Controls
             HStack {
-                Button(action: { state.adjustVolume(by: -10) }) {
+                // Volume
+                HStack(spacing: 12) {
                     Image(systemName: "speaker.wave.1.fill")
-                        .font(.system(size: 12))
-                        .opacity(0.4)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    
+                    Capsule()
+                        .fill(Color.white.opacity(0.1))
+                        .frame(width: 60, height: 4)
+                        .overlay(alignment: .leading) {
+                            Capsule()
+                                .fill(Color.white.opacity(0.3))
+                                .frame(width: 30, height: 4) // Static representation for now
+                        }
+                    
+                    Image(systemName: "speaker.wave.3.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
                 
                 Spacer()
                 
-                HStack(spacing: 35) {
+                // Main Controls
+                HStack(spacing: 30) {
                     Button(action: { state.previousTrack() }) {
                         Image(systemName: "backward.fill")
-                            .font(.system(size: 18))
+                            .font(.system(size: 22))
                     }
                     .buttonStyle(.plain)
                     
                     Button(action: { state.playPause() }) {
-                        Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 28))
+                        ZStack {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 54, height: 54)
+                            Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(.black)
+                        }
                     }
                     .buttonStyle(.plain)
                     
                     Button(action: { state.nextTrack() }) {
                         Image(systemName: "forward.fill")
-                            .font(.system(size: 18))
+                            .font(.system(size: 22))
                     }
                     .buttonStyle(.plain)
                 }
                 
                 Spacer()
                 
+                // AirPlay / More
                 Button(action: { state.openAirPlay() }) {
                     Image(systemName: "airplayaudio")
-                        .font(.system(size: 12))
-                        .opacity(0.4)
-                }
-                .buttonStyle(.plain)
-                
-                Button(action: { state.adjustVolume(by: 10) }) {
-                    Image(systemName: "speaker.wave.3.fill")
-                        .font(.system(size: 12))
-                        .opacity(0.4)
+                        .font(.system(size: 16))
+                        .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 5)
+            .padding(.top, 5)
         }
-        .padding(22)
+        .padding(25)
+        .background {
+            if let artwork = state.trackArtwork {
+                Image(nsImage: artwork)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .blur(radius: 50)
+                    .opacity(0.15)
+            }
+        }
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { value in
+                    if value.translation.width < -50 {
+                        state.nextTrack()
+                    } else if value.translation.width > 50 {
+                        state.previousTrack()
+                    }
+                }
+        )
+    }
     }
 
     var dashboardStatusBar: some View {
@@ -1176,13 +1270,20 @@ struct IslandView: View {
                     ProgressView().scaleEffect(0.6)
                 } else {
                     ForEach(state.notes.prefix(2).indices, id: \.self) { i in
-                        Text(state.notes[safe: i]?.content ?? "...")
-                            .font(.system(size: 12, weight: .medium))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(8)
-                            .background(Color.white.opacity(0.04))
-                            .cornerRadius(8)
-                            .lineLimit(1)
+                        Button(action: {
+                            state.setMode(.notes)
+                            state.isExpanded = true
+                            state.editingNoteIndex = i
+                        }) {
+                            Text(state.notes[safe: i]?.content ?? "...")
+                                .font(.system(size: 12, weight: .medium))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(8)
+                                .background(Color.white.opacity(0.04))
+                                .cornerRadius(8)
+                                .lineLimit(1)
+                        }
+                        .buttonStyle(.plain)
                     }
                     
                     if state.notes.count > 2 {
@@ -1490,7 +1591,7 @@ struct AppIcon: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 8) {
-                ZStack(alignment: .topTrailing) {
+                ZStack {
                     RoundedRectangle(cornerRadius: 15, style: .continuous)
                         .fill(isSelected ? color.opacity(0.15) : Color.white.opacity(0.05))
                         .frame(width: 60, height: 60)
@@ -1499,26 +1600,31 @@ struct AppIcon: View {
                                 .stroke(isSelected ? color : Color.white.opacity(0.1), lineWidth: 1.5)
                         )
                     
-                    if let nativeIcon = getIcon(for: appName) {
-                        Image(nsImage: nativeIcon)
-                            .resizable()
-                            .frame(width: 40, height: 40)
-                            .padding(10)
-                    } else {
-                        Image(systemName: iconName)
-                            .font(.system(size: 24))
-                            .foregroundColor(color)
+                    Group {
+                        if let nativeIcon = getIcon(for: appName) {
+                            Image(nsImage: nativeIcon)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 40, height: 40)
+                        } else {
+                            Image(systemName: iconName)
+                                .font(.system(size: 24))
+                                .foregroundColor(color)
+                        }
                     }
-                    
+                    .frame(width: 60, height: 60, alignment: .center)
+                }
+                .overlay(alignment: .topTrailing) {
                     if let badge = badge, !badge.isEmpty {
                         Text(badge)
                             .font(.system(size: 9, weight: .black))
                             .foregroundColor(.white)
-                            .padding(5)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
                             .background(Color.red)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.black, lineWidth: 1.5))
-                            .offset(x: 20, y: -20)
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(Color.black, lineWidth: 1))
+                            .offset(x: 10, y: -10)
                     }
                 }
                 
@@ -1529,6 +1635,7 @@ struct AppIcon: View {
         }
         .buttonStyle(.plain)
     }
+}
     
     func getIcon(for appName: String) -> NSImage? {
         let path = "/Applications/\(appName).app"
@@ -1658,5 +1765,43 @@ struct VisualEffectView: NSViewRepresentable {
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
         nsView.material = material
         nsView.blendingMode = blendingMode
+    }
+}
+// MARK: - Animated Components
+
+struct MusicWaveform: View {
+    var isPlaying: Bool
+    var color: Color
+    var barCount: Int
+    var maxHeight: CGFloat
+    
+    @State private var barHeights: [CGFloat] = []
+    let timer = Timer.publish(every: 0.12, on: .main, in: .common).autoconnect()
+    
+    init(isPlaying: Bool, color: Color, barCount: Int = 10, maxHeight: CGFloat = 20) {
+        self.isPlaying = isPlaying
+        self.color = color
+        self.barCount = barCount
+        self.maxHeight = maxHeight
+        _barHeights = State(initialValue: (0..<barCount).map { _ in CGFloat.random(in: 4...maxHeight) })
+    }
+    
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<barHeights.count, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(color)
+                    .frame(width: 3, height: isPlaying ? barHeights[i] : 4)
+            }
+        }
+        .onReceive(timer) { _ in
+            if isPlaying {
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.5)) {
+                    for i in 0..<barHeights.count {
+                        barHeights[i] = CGFloat.random(in: 4...maxHeight)
+                    }
+                }
+            }
+        }
     }
 }
