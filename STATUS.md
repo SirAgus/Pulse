@@ -19,18 +19,20 @@ Este documento detalla el progreso actual del desarrollo, las funcionalidades op
 - **Notas Rápidas**:
     - **Nuevo**: Editor de pantalla completa (Premium) con sincronización real con la app Notas.
     - Lista de notas con menús contextuales y visualización de estado de iCloud.
+- **Calendario y Clima**: Integración completa con datos reales del sistema (Open-Meteo y EventKit).
 - **Gestos Core**:
     - **Nuevo**: Tap-to-expand global (haz clic en cualquier parte de la isla para expandirla).
-- **Apps Integradas**:
-    - Iconos de apps refinados y alineados perfectamente.
+- **Estética Superior**:
+    - **Liquid Glass**: Efecto de vidrio premium con refracción y degradados dinámicos.
+    - **Pomodoro y Reunión**: Widgets funcionales con controles directos.
 
 ## 🛠️ En Reparación (Lo a Reparar)
 - **Sincronización de Artwork para Apple Music**: Refinando la extracción de imágenes vía AppleScript.
 - **Optimización de Animaciones**: Asegurando que las transiciones de expansión sean de 120fps.
 
 ## ⏳ Pendiente (Lo Faltante)
-- **Ajustes de Liquid Glass**: Refinar los efectos de vidrio para que se sientan más "líquidos" al expandir.
-- **Calendario y Clima**: Integración completa con datos reales del sistema.
+- **Control de Volumen Dinámico**: Indicador visual interactivo en la vista de música.
+- **Más Apps en Dashboard**: Añadir soporte para lanzar más apps del sistema.
 
 ---
 *Actualizado: 28 de Enero, 2026*

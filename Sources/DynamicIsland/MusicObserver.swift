@@ -73,17 +73,6 @@ class MusicObserver {
             }
         } else if appName == "Music" {
             // Apple Music artwork via script is complex (returns data), but let's try a temp file approach or raw hex
-            // Simpler: Try to get the artwork if available
-            let script = """
-            tell application "Music"
-                try
-                    set rawData to raw data of artwork 1 of current track
-                    return rawData
-                on error
-                    return "err"
-                end try
-            end tell
-            """
             // Since executeAppleScript returns string, getting raw data is hard here.
             // As a fallback for Music, we'll use the app icon which is already handled in View.
         }

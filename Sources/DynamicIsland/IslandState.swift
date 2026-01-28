@@ -43,7 +43,6 @@ class IslandState: ObservableObject {
     @Published var isDisabled: Bool = false {
         didSet {
             if isDisabled {
-                setMode(.idle)
                 isExpanded = false
             } else {
                 setMode(.compact)
@@ -54,12 +53,14 @@ class IslandState: ObservableObject {
         didSet {
             if isHovering {
                 cancelCollapseTimer()
-                // If we are idle, automatically show compact mode on hover
                 if mode == .idle {
                     setMode(.compact, autoCollapse: false)
                 }
+                if !isExpanded {
+                    expand()
+                }
             } else {
-                startCollapseTimer()
+                // Don't start collapse timer - island stays visible
             }
         }
     }
@@ -140,9 +141,11 @@ class IslandState: ObservableObject {
     private var lastChangeCount: Int = 0
     
     // Weather
-    @Published var currentTemp: Double?
-    @Published var precipitationProb: Int?
-    @Published var weatherCity: String = "São Paulo" // Placeholder or detected
+    @Published var currentTemp: Double? = 24.5
+    @Published var precipitationProb: Int? = 5
+    @Published var weatherCity: String = "São Paulo"
+    @Published var lat: Double = -23.55
+    @Published var lon: Double = -46.63
     
     // Calendar
     struct CalendarEvent: Identifiable {
@@ -217,6 +220,9 @@ class IslandState: ObservableObject {
         refreshBluetoothDevices()
         refreshWiFiStatus()
         refreshNotes()
+        refreshWeather()
+        refreshCalendar()
+        refreshMicStatus()
     }
     
     func refreshWiFiStatus() {
@@ -334,11 +340,16 @@ class IslandState: ObservableObject {
         if isExpanded {
             collapse()
         } else {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0)) {
-                isExpanded = true
-            }
-            cancelCollapseTimer()
+            expand()
         }
+    }
+    
+    func expand() {
+        guard !isExpanded else { return }
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0)) {
+            isExpanded = true
+        }
+        cancelCollapseTimer()
     }
     
     func collapse() {
@@ -346,9 +357,7 @@ class IslandState: ObservableObject {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0)) {
             isExpanded = false
         }
-        if !isHovering {
-            startCollapseTimer()
-        }
+        // No timer - island stays visible in compact mode
     }
     
     func setMode(_ newMode: IslandMode, autoCollapse: Bool = true) {
@@ -469,12 +478,13 @@ class IslandState: ObservableObject {
 
     func startCollapseTimer() {
         cancelCollapseTimer()
-        // 10 seconds as requested
-        collapseTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: false) { [weak self] _ in
+        // Return to compact (non-expanded) after 7s of inactivity
+        collapseTimer = Timer.scheduledTimer(withTimeInterval: 7.0, repeats: false) { [weak self] _ in
             guard let self = self else { return }
             if !self.isHovering && !self.isPlaying {
-                self.setMode(.idle)
-                withAnimation { self.isExpanded = false }
+                withAnimation(.spring()) {
+                    self.isExpanded = false
+                }
             }
         }
     }
@@ -501,33 +511,32 @@ class IslandState: ObservableObject {
             isExpanded = true
             return
         }
-        if ["Meeting", "Clipboard", "Weather", "Calendar", "Pomodoro", "Settings"].contains(named) {
-            selectedApp = named
-            // Correct the active category to match the app being opened
-            if named == "Settings" { activeCategory = "Configuración" }
-            else if ["Meeting", "Clipboard", "Pomodoro", "Calendar"].contains(named) { activeCategory = "Favoritos" }
-            else if named == "Weather" { activeCategory = "Utilidades" }
-            
-            setMode(.compact)
-            isExpanded = true
+        if ["Meeting", "Clipboard", "Weather", "Calendar", "Pomodoro"].contains(named) {
+            withAnimation(.spring()) {
+                selectedApp = named
+                isExpanded = true // Force expand to show contextual widget
+                // Update active category if needed
+                if ["Meeting", "Clipboard", "Pomodoro", "Calendar"].contains(named) { activeCategory = "Favoritos" }
+                else if named == "Weather" { activeCategory = "Utilidades" }
+            }
             return
         }
         
-        // Toggle selection for messages instead of immediate launch
-        if selectedApp == named {
-            // If already selected, then launch it
-            launchApp(named: named)
-            withAnimation { 
-                isExpanded = false 
-                selectedApp = nil
-            }
-            setMode(.idle)
-        } else {
+        if named == "Settings" {
             withAnimation(.spring()) {
-                selectedApp = named
-                refreshRealStatus()
+                activeCategory = "Configuración"
+                selectedApp = "Settings"
             }
+            return
         }
+        
+        // External apps: launch immediately and close island
+        launchApp(named: named)
+        withAnimation { 
+            isExpanded = false 
+            selectedApp = nil
+        }
+        setMode(.compact)
     }
     
     func refreshRealStatus() {
@@ -654,7 +663,7 @@ class IslandState: ObservableObject {
         try? profiler.run()
     }
     
-    private func launchApp(named: String) {
+    func launchApp(named: String) {
         let appName: String = {
             switch named {
             case "Wsp": return "WhatsApp"
@@ -665,16 +674,26 @@ class IslandState: ObservableObject {
             }
         }()
         
+        if appName == "Finder" {
+            if let finderURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.finder") {
+                NSWorkspace.shared.open(finderURL)
+            } else {
+                let fallbackURL = URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app")
+                NSWorkspace.shared.open(fallbackURL)
+            }
+            return
+        }
+
         let bundleID: String? = {
-            switch named {
-            case "Wsp": return "net.whatsapp.WhatsApp"
+            switch appName {
             case "Spotify": return "com.spotify.client"
-            case "Slack": return "com.tinyspeck.slackmacgap"
-            case "Finder": return "com.apple.finder"
-            case "Chrome": return "com.google.Chrome"
-            case "Calendar": return "com.apple.iCal"
-            case "Weather": return "com.apple.weather"
             case "Notes": return "com.apple.Notes"
+            case "Calendar": return "com.apple.iCal"
+            case "Weather": return "com.apple.Weather"
+            case "Mail": return "com.apple.mail"
+            case "Safari": return "com.apple.Safari"
+            case "FaceTime": return "com.apple.FaceTime"
+            case "Music": return "com.apple.Music"
             default: return nil
             }
         }()
@@ -685,19 +704,11 @@ class IslandState: ObservableObject {
         }
         
         // Fallback to searching /Applications and /System/Applications
-        let searchPaths = ["/Applications", "/System/Applications"]
+        let searchPaths = ["/Applications", "/System/Applications", "/System/Library/CoreServices"]
         for path in searchPaths {
             let appPath = "\(path)/\(appName).app"
             if FileManager.default.fileExists(atPath: appPath) {
                 NSWorkspace.shared.open(URL(fileURLWithPath: appPath))
-                return
-            }
-            
-            // Try English name if searching for Clima/Calendario
-            let englishName = named // e.g. "Weather", "Calendar"
-            let engPath = "\(path)/\(englishName).app"
-            if FileManager.default.fileExists(atPath: engPath) {
-                NSWorkspace.shared.open(URL(fileURLWithPath: engPath))
                 return
             }
         }
@@ -767,8 +778,27 @@ class IslandState: ObservableObject {
     }
     
     // MARK: - Weather
+    func searchLocation(_ query: String) {
+        let geocoder = CLGeocoder()
+        geocoder.geocodeAddressString(query) { [weak self] placemarks, error in
+            if let error = error {
+                print("Geocoding error: \(error.localizedDescription)")
+                return
+            }
+            
+            guard let self = self, let placemark = placemarks?.first, let location = placemark.location else { return }
+            
+            DispatchQueue.main.async {
+                self.lat = location.coordinate.latitude
+                self.lon = location.coordinate.longitude
+                self.weatherCity = placemark.locality ?? placemark.name ?? query
+                self.refreshWeather()
+            }
+        }
+    }
+    
     func refreshWeather() {
-        let url = URL(string: "https://api.open-meteo.com/v1/forecast?latitude=-23.55&longitude=-46.63&current=temperature_2m&hourly=precipitation_probability&timezone=auto")!
+        let url = URL(string: "https://api.open-meteo.com/v1/forecast?latitude=\(lat)&longitude=\(lon)&current=temperature_2m&hourly=precipitation_probability&timezone=auto")!
         URLSession.shared.dataTask(with: url) { data, _, _ in
             guard let data = data else { return }
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -864,13 +894,13 @@ class IslandState: ObservableObject {
             }
         } else {
             switch mode {
-            case .idle: return 20
-            case .compact: return 120
+            case .idle: return 200 // Invisible hover area
+            case .compact: return 180 // Smaller pill shape like iPhone
             case .music: return 200
-            case .battery: return 100
-            case .volume: return 100
+            case .battery: return 120
+            case .volume: return 120
             case .timer: return 140
-            case .notes: return 120
+            case .notes: return 140
             case .productivity: return 180
             }
         }
@@ -879,20 +909,23 @@ class IslandState: ObservableObject {
     func heightForMode(_ mode: IslandMode, isExpanded: Bool) -> CGFloat {
         if isExpanded {
             switch mode {
-            case .compact: return 600
+            case .compact: return 550
             case .music: return 220
             case .battery: return 70
             case .volume: return 60
             case .timer: return 180
             case .notes: return 450
-            case .productivity: return 600
+            case .productivity: return 550
             default: return 160
             }
         } else {
             switch mode {
-            case .idle: return 1 
-            case .timer, .notes, .productivity: return 35
-            default: return 35
+            case .idle: return 37 // Small pill in notch
+            case .compact: return 37 // Small pill like iPhone Dynamic Island
+            case .music: return 37
+            case .battery: return 37
+            case .volume: return 37
+            case .timer, .notes, .productivity: return 37
             }
         }
     }

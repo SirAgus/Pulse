@@ -8,46 +8,70 @@ struct IslandView: View {
     var body: some View {
         ZStack {
             // Main Island Background with Tap Gesture
-            RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 4 : 20), style: .continuous)
-                .fill(state.backgroundStyle == .solid ? state.islandColor : Color.clear)
+            RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 18.5 : 20), style: .continuous)
+                .fill((state.backgroundStyle == .solid || !state.isExpanded) && state.mode != .idle ? Color.black : Color.black.opacity(0.015))
+                .onTapGesture {
+                    if !state.isExpanded {
+                        state.toggleExpand()
+                    }
+                }
+                .allowsHitTesting(!state.isExpanded) // Crucial: Don't block buttons when expanded
                 .background(
                     ZStack {
                         if state.backgroundStyle == .liquidGlass {
-                            VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                                .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 35 : 20, style: .continuous))
+                            VisualEffectView(material: .headerView, blendingMode: .behindWindow)
+                                .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 18.5 : 20), style: .continuous))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: state.isExpanded ? 35 : 20, style: .continuous)
-                                        .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                                    RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 18.5 : 20), style: .continuous)
+                                        .stroke(
+                                            LinearGradient(
+                                                colors: [
+                                                    .white.opacity(0.4),
+                                                    .white.opacity(0.1),
+                                                    .white.opacity(0.3)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 1.2
+                                        )
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 18.5 : 20), style: .continuous)
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [
+                                                    .white.opacity(0.12),
+                                                    .clear,
+                                                    .black.opacity(0.05)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
                                 )
                         } else if state.backgroundStyle == .liquidGlassDark {
                             VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
-                                .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 35 : 20, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 18.5 : 20), style: .continuous))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: state.isExpanded ? 35 : 20, style: .continuous)
-                                        .stroke(Color.black.opacity(0.4), lineWidth: 0.5)
+                                    RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 18.5 : 20), style: .continuous)
+                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
                                 )
                         }
                     }
                 )
                 .contentShape(Rectangle())
-                .contentShape(Rectangle())
-                .shadow(color: Color.black.opacity(state.backgroundStyle == .solid ? 0 : 0.3), radius: 20, x: 0, y: 10)
+                .shadow(color: Color.black.opacity(state.backgroundStyle == .solid ? 0.3 : 0.5), radius: state.isExpanded ? 30 : 15, x: 0, y: 10)
                 .zIndex(0)
+                .allowsHitTesting(true) 
             
             // Content Layer (Buttons, text, etc)
             contentForMode(state.mode)
-                .opacity(state.mode == .idle ? 0 : 1)
+                .opacity(state.isDisabled || state.mode == .idle ? 0.01 : 1)
                 .allowsHitTesting(true)
                 .zIndex(1)
         }
-        .contentShape(RoundedRectangle(cornerRadius: state.isExpanded ? 35 : 20, style: .continuous))
-        .onTapGesture {
-            if !state.isExpanded {
-                withAnimation(.spring()) {
-                    state.toggleExpand()
-                }
-            }
-        }
+        .contentShape(Rectangle()) // Entire frame is now a hit target
         .frame(
             width: state.widthForMode(state.mode, isExpanded: state.isExpanded),
             height: state.heightForMode(state.mode, isExpanded: state.isExpanded)
@@ -65,7 +89,7 @@ struct IslandView: View {
         Group {
             switch mode {
             case .idle:
-                EmptyView()
+                Color.black.opacity(0.01) // Invisible but captures hover
             case .compact:
               if state.isExpanded {
                     expandedDashboardContent
@@ -114,11 +138,17 @@ struct IslandView: View {
                     .font(.system(size: 10))
                     .foregroundColor(.red)
             }
-            Circle()
-                .fill(Color.green)
-                .frame(width: 6, height: 6)
-            Text("Activa")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+            
+            if state.showClock {
+                Text(Date(), style: .time)
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundColor(.white)
+            } else {
+                // Minimalist status dots
+                Circle()
+                    .fill(state.isMicMuted ? Color.orange : Color.green.opacity(0.8))
+                    .frame(width: 4, height: 4)
+            }
         }
         .contentShape(Rectangle())
         .onTapGesture {
@@ -330,79 +360,79 @@ struct IslandView: View {
         }
     }
     
-    var expandedNotesContent: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Group {
-                    if state.editingNoteIndex != nil {
-                        Button(action: { withAnimation(.spring()) { state.editingNoteIndex = nil } }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "chevron.left")
-                                Text("Mis Notas")
-                            }
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.yellow)
+    var notesHeader: some View {
+        HStack {
+            Group {
+                if state.editingNoteIndex != nil {
+                    Button(action: { withAnimation(.spring()) { state.editingNoteIndex = nil } }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.left")
+                            Text("Mis Notas")
                         }
-                    } else {
-                        Button(action: { state.showDashboard() }) {
-                            Image(systemName: "chevron.left.circle.fill")
-                                .font(.system(size: 22))
-                                .opacity(0.3)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                
-                Spacer()
-                
-                Text(state.editingNoteIndex != nil ? "EDITOR DE NOTAS" : "MIS NOTAS")
-                    .font(.system(size: 10, weight: .black))
-                    .kerning(1)
-                    .opacity(0.4)
-                
-                Spacer()
-                
-                if state.editingNoteIndex == nil {
-                    HStack(spacing: 16) {
-                        Button(action: { state.openNotesApp() }) {
-                            Image(systemName: "arrow.up.right.square.fill")
-                                .font(.system(size: 20))
-                                .opacity(0.3)
-                        }
-                        .buttonStyle(.plain)
-                        
-                        Button(action: { state.addNote() }) {
-                            Image(systemName: "plus.circle.fill")
-                                .foregroundColor(.yellow)
-                                .font(.system(size: 20))
-                        }
-                        .buttonStyle(.plain)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.yellow)
                     }
                 } else {
-                    Button(action: {
-                        if let index = state.editingNoteIndex {
-                            state.saveNote(at: index, newContent: state.notes[index].content)
-                            withAnimation(.spring()) { state.editingNoteIndex = nil }
-                        }
-                    }) {
-                        Text("LISTO")
-                            .font(.system(size: 10, weight: .black))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(state.accentColor)
-                            .foregroundColor(.black)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    Button(action: { state.showDashboard() }) {
+                        Image(systemName: "chevron.left.circle.fill")
+                            .font(.system(size: 22))
+                            .opacity(0.3)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            
+            Spacer()
+            
+            Text(state.editingNoteIndex != nil ? "EDITOR DE NOTAS" : "MIS NOTAS")
+                .font(.system(size: 10, weight: .black))
+                .kerning(1)
+                .opacity(0.4)
+            
+            Spacer()
+            
+            if state.editingNoteIndex == nil {
+                HStack(spacing: 16) {
+                    Button(action: { state.openNotesApp() }) {
+                        Image(systemName: "arrow.up.right.square.fill")
+                            .font(.system(size: 20))
+                            .opacity(0.3)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: { state.addNote() }) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(.yellow)
+                            .font(.system(size: 20))
                     }
                     .buttonStyle(.plain)
                 }
+            } else {
+                Button(action: {
+                    if let index = state.editingNoteIndex {
+                        state.saveNote(at: index, newContent: state.notes[index].content)
+                        withAnimation(.spring()) { state.editingNoteIndex = nil }
+                    }
+                }) {
+                    Text("LISTO")
+                        .font(.system(size: 10, weight: .black))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(state.accentColor)
+                        .foregroundColor(.black)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 25)
-            .padding(.top, 25)
-            .padding(.bottom, 20)
-            
+        }
+        .padding(.horizontal, 25)
+        .padding(.top, 25)
+        .padding(.bottom, 20)
+    }
+
+    var notesEditor: some View {
+        Group {
             if let index = state.editingNoteIndex {
-                // PREMIUM Full screen editor
                 TextEditor(text: Binding(
                     get: { state.notes[safe: index]?.content ?? "" },
                     set: { state.notes[index].content = $0 }
@@ -419,57 +449,70 @@ struct IslandView: View {
                 .padding(.horizontal, 22)
                 .padding(.bottom, 25)
                 .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
-            } else {
-                // List View
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 14) {
-                        if state.isSyncingNotes && state.notes.isEmpty {
-                            VStack(spacing: 15) {
-                                ProgressView().scaleEffect(0.8)
-                                Text("Conectando con iCloud...").font(.system(size: 12, weight: .bold)).opacity(0.4)
-                            }.padding(.top, 60).frame(maxWidth: .infinity)
-                        } else {
-                            ForEach(state.notes.indices, id: \.self) { index in
-                                Button(action: { withAnimation(.spring()) { state.editingNoteIndex = index } }) {
-                                    VStack(alignment: .leading, spacing: 10) {
-                                        Text(state.notes[index].content)
-                                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                                            .foregroundColor(.white)
-                                            .lineLimit(3)
-                                            .multilineTextAlignment(.leading)
-                                        
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "icloud.fill").font(.system(size: 9))
-                                            Text("SINCRONIZADO").font(.system(size: 8, weight: .black))
-                                            Spacer()
-                                            Image(systemName: "chevron.right").font(.system(size: 10)).opacity(0.3)
-                                        }
-                                        .opacity(0.3)
-                                    }
-                                    .padding(22)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.white.opacity(0.03))
-                                    .cornerRadius(25, style: .continuous)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 25, style: .continuous)
-                                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                                    )
+            }
+        }
+    }
+
+    var notesListView: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 14) {
+                if state.isSyncingNotes && state.notes.isEmpty {
+                    VStack(spacing: 15) {
+                        ProgressView().scaleEffect(0.8)
+                        Text("Conectando con iCloud...").font(.system(size: 12, weight: .bold)).opacity(0.4)
+                    }.padding(.top, 60).frame(maxWidth: .infinity)
+                } else {
+                    ForEach(state.notes.indices, id: \.self) { index in
+                        Button(action: { withAnimation(.spring()) { state.editingNoteIndex = index } }) {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text(state.notes[index].content)
+                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white)
+                                    .lineLimit(3)
+                                    .multilineTextAlignment(.leading)
+                                
+                                HStack(spacing: 4) {
+                                    Image(systemName: "icloud.fill").font(.system(size: 9))
+                                    Text("SINCRONIZADO").font(.system(size: 8, weight: .black))
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.system(size: 10)).opacity(0.3)
                                 }
-                                .buttonStyle(.plain)
-                                .contextMenu {
-                                    Button(role: .destructive) {
-                                        state.deleteNote(at: index)
-                                    } label: {
-                                        Label("Eliminar", systemImage: "trash")
-                                    }
-                                }
+                                .opacity(0.3)
+                            }
+                            .padding(22)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.white.opacity(0.03))
+                            .clipShape(RoundedRectangle(cornerRadius: 25, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 25, style: .continuous)
+                                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                state.deleteNote(at: index)
+                            } label: {
+                                Label("Eliminar", systemImage: "trash")
                             }
                         }
                     }
-                    .padding(.horizontal, 22)
-                    .padding(.bottom, 20)
                 }
-                .transition(.asymmetric(insertion: .move(edge: .leading).combined(with: .opacity), removal: .move(edge: .trailing).combined(with: .opacity)))
+            }
+            .padding(.horizontal, 22)
+            .padding(.bottom, 20)
+        }
+        .transition(.asymmetric(insertion: .move(edge: .leading).combined(with: .opacity), removal: .move(edge: .trailing).combined(with: .opacity)))
+    }
+
+    var expandedNotesContent: some View {
+        VStack(spacing: 0) {
+            notesHeader
+            
+            if state.editingNoteIndex != nil {
+                notesEditor
+            } else {
+                notesListView
             }
         }
     }
@@ -477,28 +520,34 @@ struct IslandView: View {
     var expandedDashboardContent: some View {
         VStack(spacing: 0) {
             dashboardStatusBar
+                .padding(.top, 45) // Offset content below the notch area
             dashboardCategorySelector
             
             // Content Area based on Category
             VStack(spacing: 0) {
                 Divider().background(Color.white.opacity(0.1))
                 
-                ScrollView(showsIndicators: false) { // This ScrollView now wraps both app grid and contextual widgets
-                    VStack(spacing: 30) { // Even more spacing
-                        if state.activeCategory == "Dispositivos" {
-                            dashboardDevicesGrid
-                        } else if state.activeCategory == "Configuración" {
-                            settingsWidget
-                                .padding(.horizontal, 25)
-                        } else {
-                            dashboardAppGridContent
-                            
-                            if state.selectedApp != nil {
-                                dashboardContextualWidgets
-                            }
-                        }
+                if state.activeCategory == "Dispositivos" {
+                    ScrollView(showsIndicators: false) {
+                        dashboardDevicesGrid
+                            .padding(.vertical, 20)
                     }
-                    .padding(.vertical, 20)
+                } else if state.activeCategory == "Configuración" {
+                    ScrollView(showsIndicators: false) {
+                        settingsWidget
+                            .padding(.horizontal, 25)
+                            .padding(.vertical, 20)
+                    }
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        dashboardAppGridContent
+                            .padding(.vertical, 20)
+                    }
+                    
+                    if state.selectedApp != nil {
+                        dashboardContextualWidgets
+                            .padding(.bottom, 20)
+                    }
                 }
             }
             .animation(.spring(), value: state.selectedApp)
@@ -849,13 +898,14 @@ struct IslandView: View {
         let badge: String?
     }
     
+
     func getAppsForCategory(_ cat: String) -> [AppData] {
         switch cat {
         case "Favoritos":
             return [
                 AppData(id: "Meeting", name: "Reunión", icon: "video.fill", color: .blue, badge: nil),
                 AppData(id: "Clipboard", name: "Papeles", icon: "doc.on.clipboard.fill", color: .orange, badge: state.clipboardHistory.isEmpty ? nil : "\(state.clipboardHistory.count)"),
-                AppData(id: "Pomodoro", name: "Pomodoro", icon: "tomato.fill", color: .red, badge: state.isPomodoroRunning ? "ON" : nil),
+                AppData(id: "Pomodoro", name: "Pomodoro", icon: "timer", color: .red, badge: state.isPomodoroRunning ? "ON" : nil),
                 AppData(id: "Calendar", name: "Eventos", icon: "calendar", color: .red, badge: nil)
             ]
         case "Recientes":
@@ -867,8 +917,7 @@ struct IslandView: View {
         case "Utilidades":
             return [
                 AppData(id: "Weather", name: "Clima", icon: "cloud.fill", color: .blue, badge: nil),
-                AppData(id: "Timer", name: "Timer", icon: "timer", color: .orange, badge: state.isTimerRunning ? "!" : nil),
-                AppData(id: "Settings", name: "Config", icon: "gearshape.fill", color: .gray, badge: nil)
+                AppData(id: "Timer", name: "Timer", icon: "timer", color: .orange, badge: state.isTimerRunning ? "!" : nil)
             ]
         default: return []
         }
@@ -1044,11 +1093,17 @@ struct IslandView: View {
     }
 
     var statusBarBattery: some View {
-        HStack(spacing: 6) {
-            Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.75")
-                .foregroundColor(state.isCharging ? .green : .white)
-            Text("\(state.batteryLevel)%")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+        HStack(spacing: 12) {
+            if state.showClock {
+                Text(Date(), style: .time)
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+            }
+            HStack(spacing: 6) {
+                Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.75")
+                    .foregroundColor(state.isCharging ? .green : .white)
+                Text("\(state.batteryLevel)%")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
@@ -1066,11 +1121,6 @@ struct IslandView: View {
                 }
                 .font(.system(size: 9, weight: .bold))
                 .foregroundColor(.blue.opacity(0.8))
-            }
-            
-            if state.showClock {
-                Text(Date(), style: .time)
-                    .font(.system(size: 15, weight: .black, design: .rounded))
             }
         }
     }
@@ -1184,6 +1234,7 @@ struct IslandView: View {
             .frame(height: 5)
         }
         .padding(.horizontal, 12)
+        .padding(.top, 45) // Protection for volume below notch
     }
     
     func formatTime(_ seconds: Double) -> String {
@@ -1210,35 +1261,55 @@ struct IslandView: View {
                 if state.isTimerRunning {
                     Button(action: { state.stopTimer() }) {
                         Image(systemName: "pause.fill")
-                            .frame(width: 40, height: 40)
+                            .font(.system(size: 16, weight: .bold))
+                            .frame(width: 44, height: 44)
                             .background(Color.orange.opacity(0.2))
                             .clipShape(Circle())
                     }
+                    .buttonStyle(.plain)
                 } else {
-                    Button(action: { state.startTimer(minutes: 0) }) {
+                    Button(action: { state.startTimer(minutes: state.customTimerMinutes) }) {
                         Image(systemName: "play.fill")
-                            .frame(width: 40, height: 40)
+                            .font(.system(size: 16, weight: .bold))
+                            .frame(width: 44, height: 44)
                             .background(Color.orange)
+                            .foregroundColor(.black)
                             .clipShape(Circle())
                     }
+                    .buttonStyle(.plain)
                 }
             }
             
             if !state.isTimerRunning {
-                HStack {
-                    Image(systemName: "clock")
-                        .opacity(0.4)
-                    TextField("Minutos", value: $state.customTimerMinutes, formatter: NumberFormatter())
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12, weight: .bold))
-                        .frame(width: 50)
+                VStack(spacing: 12) {
+                    HStack(spacing: 8) {
+                        ForEach([5, 10, 15, 30], id: \.self) { mins in
+                            Button(action: { state.customTimerMinutes = Double(mins) }) {
+                                Text("\(mins)m")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(state.customTimerMinutes == Double(mins) ? Color.orange.opacity(0.3) : Color.white.opacity(0.05))
+                                    .cornerRadius(6)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                     
-                    Slider(value: $state.customTimerMinutes, in: 1...60, step: 1)
-                        .accentColor(.orange)
+                    HStack {
+                        Image(systemName: "clock")
+                            .font(.system(size: 10))
+                            .opacity(0.4)
+                        Slider(value: $state.customTimerMinutes, in: 1...60, step: 1)
+                            .accentColor(.orange)
+                        Text("\(Int(state.customTimerMinutes))m")
+                            .font(.system(size: 11, weight: .bold))
+                            .frame(width: 30)
+                    }
+                    .padding(10)
+                    .background(Color.white.opacity(0.05))
+                    .cornerRadius(12)
                 }
-                .padding(10)
-                .background(Color.white.opacity(0.05))
-                .cornerRadius(12)
             }
         }
         .padding()
@@ -1304,43 +1375,93 @@ struct IslandView: View {
         .cornerRadius(22)
     }
     
-    var meetingWidget: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("MODO REUNIÓN")
-                .font(.system(size: 9, weight: .black)).opacity(0.4)
-            
-            HStack(spacing: 20) {
-                Button(action: { state.toggleMic() }) {
-                    VStack(spacing: 8) {
-                        Image(systemName: state.isMicMuted ? "mic.slash.fill" : "mic.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(state.isMicMuted ? .red : .green)
-                        Text(state.isMicMuted ? "Muteado" : "Activo")
-                            .font(.system(size: 10, weight: .bold))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.white.opacity(0.05))
-                    .cornerRadius(12)
+    var meetingHeader: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("MODO REUNIÓN")
+                    .font(.system(size: 9, weight: .black)).opacity(0.4)
+                Text("CONTROLES DE LLAMADA")
+                    .font(.system(size: 14, weight: .black, design: .rounded))
+            }
+            Spacer()
+            Image(systemName: "video.fill")
+                .font(.system(size: 20))
+                .foregroundColor(.blue)
+                .padding(10)
+                .background(Color.blue.opacity(0.1))
+                .clipShape(Circle())
+        }
+    }
+
+    var meetingControls: some View {
+        HStack(spacing: 12) {
+            // Mic Button
+            Button(action: { state.toggleMic() }) {
+                VStack(spacing: 8) {
+                    Image(systemName: state.isMicMuted ? "mic.slash.fill" : "mic.fill")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(state.isMicMuted ? .red : .green)
+                    Text(state.isMicMuted ? "Muteado" : "Activo")
+                        .font(.system(size: 10, weight: .black))
+                        .opacity(0.6)
                 }
-                .buttonStyle(.plain)
-                
-                Button(action: { state.toggleDND() }) {
-                    VStack(spacing: 8) {
-                        Image(systemName: state.isDNDActive ? "moon.fill" : "moon.badge.clock.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(state.isDNDActive ? .purple : .white.opacity(0.3))
-                        Text(state.isDNDActive ? "DND: ON" : "DND: OFF")
-                            .font(.system(size: 10, weight: .bold))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.white.opacity(0.05))
-                    .cornerRadius(12)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(state.isMicMuted ? Color.red.opacity(0.1) : Color.green.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(state.isMicMuted ? Color.red.opacity(0.2) : Color.green.opacity(0.2), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            
+            // DND Button
+            Button(action: { state.toggleDND() }) {
+                VStack(spacing: 8) {
+                    Image(systemName: state.isDNDActive ? "moon.fill" : "moon")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(state.isDNDActive ? .purple : .white.opacity(0.5))
+                    Text(state.isDNDActive ? "No Molestar" : "Libre")
+                        .font(.system(size: 10, weight: .black))
+                        .opacity(0.6)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(state.isDNDActive ? Color.purple.opacity(0.1) : Color.white.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(state.isDNDActive ? Color.purple.opacity(0.2) : Color.clear, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    var meetingQuickLaunch: some View {
+        HStack(spacing: 10) {
+            Text("LANZAR:")
+                .font(.system(size: 8, weight: .bold)).opacity(0.3)
+            
+            ForEach(["FaceTime", "Zoom", "Slack"], id: \.self) { app in
+                Button(action: { state.launchApp(named: app) }) {
+                    Text(app)
+                        .font(.system(size: 9, weight: .black))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(8)
                 }
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    var meetingWidget: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            meetingHeader
+            meetingControls
+            meetingQuickLaunch
+        }
+        .padding(20)
+        .background(Color.white.opacity(0.02))
+        .clipShape(RoundedRectangle(cornerRadius: 25))
+        .overlay(RoundedRectangle(cornerRadius: 25).stroke(Color.white.opacity(0.05), lineWidth: 1))
     }
     
     var clipboardWidget: some View {
@@ -1377,123 +1498,209 @@ struct IslandView: View {
     }
     
     var weatherWidget: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 15) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("CLIMA ACTUAL")
                         .font(.system(size: 9, weight: .black)).opacity(0.4)
-                    Text(state.weatherCity)
-                        .font(.system(size: 14, weight: .bold))
+                    Text(state.weatherCity.uppercased())
+                        .font(.system(size: 16, weight: .black, design: .rounded))
+                        .foregroundColor(.white)
                 }
                 Spacer()
                 if let temp = state.currentTemp {
                     Text("\(Int(temp))°")
-                        .font(.system(size: 28, weight: .black, design: .rounded))
+                        .font(.system(size: 32, weight: .black, design: .rounded))
                         .foregroundColor(state.accentColor)
+                } else {
+                    ProgressView().scaleEffect(0.5).opacity(0.3)
                 }
             }
+            
+            // Search Bar
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.white.opacity(0.3))
+                TextField("Cambiar ubicación...", text: $state.weatherCity, onCommit: {
+                    state.searchLocation(state.weatherCity)
+                })
+                .textFieldStyle(.plain)
+                .font(.system(size: 12, weight: .bold))
+            }
+            .padding(10)
+            .background(Color.white.opacity(0.05))
+            .cornerRadius(12)
             
             HStack {
                 Label("\(state.precipitationProb ?? 0)% lluvia", systemImage: "drop.fill")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.blue)
                 Spacer()
-                Text("Hoy despejado")
-                    .font(.system(size: 11))
+                Text("Despejado")
+                    .font(.system(size: 11, weight: .bold))
                     .opacity(0.4)
             }
-            .padding(10)
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(10)
+            .padding(12)
+            .background(LinearGradient(colors: [Color.white.opacity(0.08), Color.clear], startPoint: .top, endPoint: .bottom))
+            .clipShape(RoundedRectangle(cornerRadius: 15))
+            .overlay(RoundedRectangle(cornerRadius: 15).stroke(Color.white.opacity(0.1), lineWidth: 1))
         }
+        .padding()
+        .background(Color.black.opacity(0.2))
+        .cornerRadius(25)
     }
     
     var calendarWidget: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("PRÓXIMO EVENTO")
-                .font(.system(size: 9, weight: .black)).opacity(0.4)
+        VStack(alignment: .leading, spacing: 15) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("PRÓXIMO EVENTO")
+                        .font(.system(size: 9, weight: .black)).opacity(0.4)
+                    Text("TU AGENDA")
+                        .font(.system(size: 14, weight: .black, design: .rounded))
+                }
+                Spacer()
+                Image(systemName: "calendar")
+                    .font(.system(size: 20))
+                    .foregroundColor(.red)
+                    .padding(10)
+                    .background(Color.red.opacity(0.1))
+                    .clipShape(Circle())
+            }
             
             if let event = state.nextEvent {
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 12) {
                     Text(event.title)
-                        .font(.system(size: 16, weight: .black, design: .rounded))
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .foregroundColor(.white)
                     
-                    HStack {
-                        Image(systemName: "clock.fill").font(.system(size: 10))
-                        Text(event.startDate.formatted(date: .omitted, time: .shortened))
-                            .font(.system(size: 12, weight: .bold))
+                    HStack(spacing: 15) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "clock.fill")
+                            Text(event.startDate.formatted(date: .omitted, time: .shortened))
+                        }
                         
                         if let loc = event.location {
-                            Text("•")
-                            Image(systemName: "location.fill").font(.system(size: 10))
-                            Text(loc).lineLimit(1)
+                            HStack(spacing: 6) {
+                                Image(systemName: "location.fill")
+                                Text(loc).lineLimit(1)
+                            }
                         }
                     }
-                    .font(.system(size: 11))
-                    .opacity(0.5)
+                    .font(.system(size: 11, weight: .bold))
+                    .opacity(0.6)
                     
                     if let url = event.url {
                         Button(action: { NSWorkspace.shared.open(url) }) {
-                            Text("Unirse a Reunión")
-                                .font(.system(size: 11, weight: .bold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                                .background(state.accentColor)
-                                .foregroundColor(.black)
-                                .cornerRadius(8)
+                            HStack {
+                                Image(systemName: "video.fill")
+                                Text("UNIRSE A REUNIÓN")
+                            }
+                            .font(.system(size: 11, weight: .black))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(state.accentColor)
+                            .foregroundColor(.black)
+                            .cornerRadius(15)
                         }
                         .buttonStyle(.plain)
-                        .padding(.top, 5)
                     }
                 }
                 .padding(15)
                 .background(Color.white.opacity(0.05))
-                .cornerRadius(18)
+                .cornerRadius(20)
             } else {
-                Text("No hay eventos próximos")
-                    .font(.system(size: 12, weight: .medium))
-                    .opacity(0.3)
-                    .padding(.vertical, 20)
-                    .frame(maxWidth: .infinity)
+                HStack {
+                    Image(systemName: "calendar.badge.clock")
+                        .font(.system(size: 24))
+                        .opacity(0.2)
+                    Text("No hay eventos próximos")
+                        .font(.system(size: 13, weight: .bold))
+                        .opacity(0.3)
+                    Spacer()
+                }
+                .padding(20)
+                .background(Color.white.opacity(0.03))
+                .cornerRadius(20)
             }
         }
     }
     
-    var pomodoroWidget: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("POMODORO")
-                        .font(.system(size: 9, weight: .black)).opacity(0.4)
-                    Text(state.pomodoroMode == .work ? "Enfoque" : "Descanso")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(state.pomodoroMode == .work ? .red : .green)
-                }
-                Spacer()
-                Text(state.formatPomodoroTime())
-                    .font(.system(size: 28, weight: .black, design: .monospaced))
+    var pomodoroHeader: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("POMODORO")
+                    .font(.system(size: 9, weight: .black)).opacity(0.4)
+                Text(state.pomodoroMode == .work ? "ENFOQUE" : "DESCANSO")
+                    .font(.system(size: 14, weight: .black, design: .rounded))
+                    .foregroundColor(state.pomodoroMode == .work ? .red : .green)
             }
-            
-            HStack(spacing: 12) {
-                Button(action: { state.isPomodoroRunning ? state.pausePomodoro() : state.startPomodoro() }) {
+            Spacer()
+            Text(state.formatPomodoroTime())
+                .font(.system(size: 32, weight: .black, design: .monospaced))
+                .foregroundColor(state.pomodoroMode == .work ? .red : .green)
+        }
+    }
+
+    var pomodoroControls: some View {
+        HStack(spacing: 12) {
+            Button(action: { 
+                if state.isPomodoroRunning { state.pausePomodoro() } 
+                else { state.startPomodoro() }
+            }) {
+                HStack {
                     Image(systemName: state.isPomodoroRunning ? "pause.fill" : "play.fill")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.white.opacity(0.1))
-                        .cornerRadius(10)
+                    Text(state.isPomodoroRunning ? "PAUSAR" : "INICIAR")
                 }
-                .buttonStyle(.plain)
-                
-                Button(action: { state.resetPomodoro() }) {
-                    Image(systemName: "arrow.counterclockwise")
-                        .frame(width: 44)
-                        .padding(.vertical, 10)
-                        .background(Color.white.opacity(0.05))
-                        .cornerRadius(10)
+                .font(.system(size: 12, weight: .black))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(state.isPomodoroRunning ? Color.white.opacity(0.1) : state.accentColor.opacity(0.8))
+                .foregroundColor(state.isPomodoroRunning ? .white : .black)
+                .cornerRadius(15)
+            }
+            .buttonStyle(.plain)
+            
+            Button(action: { state.resetPomodoro() }) {
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.system(size: 14, weight: .bold))
+                    .frame(width: 50)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.05))
+                    .cornerRadius(15)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    var pomodoroModeSelector: some View {
+        HStack(spacing: 8) {
+            ForEach([IslandState.PomodoroMode.work, IslandState.PomodoroMode.shortBreak, IslandState.PomodoroMode.longBreak], id: \.self) { mode in
+                Button(action: { 
+                    state.pomodoroMode = mode
+                    state.resetPomodoro()
+                }) {
+                    Text(mode == .work ? "Trabajo" : (mode == .shortBreak ? "Corto" : "Largo"))
+                        .font(.system(size: 10, weight: .bold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(state.pomodoroMode == mode ? state.accentColor.opacity(0.2) : Color.clear)
+                        .cornerRadius(8)
                 }
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    var pomodoroWidget: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            pomodoroHeader
+            pomodoroControls
+            pomodoroModeSelector
+        }
+        .padding()
+        .background(Color.white.opacity(0.03))
+        .cornerRadius(22)
     }
     
     var islandColorPicker: some View {
@@ -1615,10 +1822,10 @@ struct AppIcon: View {
                         Image(nsImage: nativeIcon)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 38, height: 38)
+                            .frame(width: 42, height: 42)
                     } else {
                         Image(systemName: iconName)
-                            .font(.system(size: 24, weight: .bold))
+                            .font(.system(size: 28, weight: .bold))
                             .foregroundColor(color)
                     }
                 }
