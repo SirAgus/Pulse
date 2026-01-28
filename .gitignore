@@ -3,7 +3,6 @@
 .swiftpm/
 DerivedData/
 *.app
-*.dmg
 *.pkg
 .deps
 .agent/

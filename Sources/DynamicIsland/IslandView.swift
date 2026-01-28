@@ -6,6 +6,17 @@ struct IslandView: View {
     @EnvironmentObject var state: IslandState
     @Namespace private var animation
     @FocusState private var isSearchFocused: Bool
+    
+    // Timer icon loaded from Resources
+    private var timerIcon: NSImage? {
+        // First try Bundle (for installed app)
+        if let path = Bundle.main.path(forResource: "timer_icon", ofType: "png") {
+            return NSImage(contentsOfFile: path)
+        }
+        // Fallback for development (swift run)
+        let devPath = "/Users/agus/Documents/dynamicIsland/Resources/timer_icon.png"
+        return NSImage(contentsOfFile: devPath)
+    }
 
     var body: some View {
         ZStack {
@@ -114,14 +125,8 @@ struct IslandView: View {
             // Show Pomodoro timer when focus is active, otherwise show clock
             if state.isPomodoroRunning {
                 HStack(spacing: 4) {
-                    if let iconPath = Bundle.main.path(forResource: "timer_icon", ofType: "png"),
-                       let nsImage = NSImage(contentsOfFile: iconPath) {
-                        Image(nsImage: nsImage)
-                            .resizable()
-                            .frame(width: 16, height: 16)
-                    } else {
-                        // Fallback: try loading from Resources folder directly
-                        Image(nsImage: NSImage(contentsOfFile: "/Users/agus/Documents/dynamicIsland/Resources/timer_icon.png") ?? NSImage())
+                    if let icon = timerIcon {
+                        Image(nsImage: icon)
                             .resizable()
                             .frame(width: 16, height: 16)
                     }
@@ -154,10 +159,14 @@ struct IslandView: View {
         HStack(spacing: 10) {
             if state.isPomodoroRunning {
                 HStack(spacing: 6) {
-                    Text("🍅")
+                    if let icon = timerIcon {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .frame(width: 16, height: 16)
+                    }
                     Text(state.formatPomodoroTime())
                         .font(.system(size: 12, weight: .black, design: .monospaced))
-                        .foregroundColor(.red)
+                        .foregroundColor(.orange)
                 }
             } else if state.isMicMuted {
                 HStack(spacing: 6) {
