@@ -4,78 +4,48 @@ import AppKit
 struct IslandView: View {
     @EnvironmentObject var state: IslandState
     @Namespace private var animation
-    
+
     var body: some View {
         ZStack {
             // Main Island Background with Tap Gesture
-            RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 18.5 : 20), style: .continuous)
-                .fill((state.backgroundStyle == .solid || !state.isExpanded) && state.mode != .idle ? Color.black : Color.black.opacity(0.015))
+            RoundedRectangle(cornerRadius: state.isExpanded ? 32 : 14, style: .continuous)
+                .fill((state.backgroundStyle == .solid || !state.isExpanded) && state.mode != .idle ? Color.black : Color.black.opacity(0.1))
                 .onTapGesture {
                     if !state.isExpanded {
                         state.toggleExpand()
                     }
                 }
-                .allowsHitTesting(!state.isExpanded) // Crucial: Don't block buttons when expanded
+                .allowsHitTesting(!state.isExpanded)
                 .background(
                     ZStack {
                         if state.backgroundStyle == .liquidGlass {
                             VisualEffectView(material: .headerView, blendingMode: .behindWindow)
-                                .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 18.5 : 20), style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 32 : 14, style: .continuous))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 18.5 : 20), style: .continuous)
-                                        .stroke(
-                                            LinearGradient(
-                                                colors: [
-                                                    .white.opacity(0.4),
-                                                    .white.opacity(0.1),
-                                                    .white.opacity(0.3)
-                                                ],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            ),
-                                            lineWidth: 1.2
-                                        )
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 18.5 : 20), style: .continuous)
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [
-                                                    .white.opacity(0.12),
-                                                    .clear,
-                                                    .black.opacity(0.05)
-                                                ],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            )
-                                        )
+                                    RoundedRectangle(cornerRadius: state.isExpanded ? 32 : 14, style: .continuous)
+                                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
                                 )
                         } else if state.backgroundStyle == .liquidGlassDark {
                             VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
-                                .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 18.5 : 20), style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 32 : 14, style: .continuous))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: state.isExpanded ? 35 : (state.mode == .idle ? 18.5 : 20), style: .continuous)
+                                    RoundedRectangle(cornerRadius: state.isExpanded ? 32 : 14, style: .continuous)
                                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                                 )
                         }
                     }
                 )
-                .contentShape(Rectangle())
-                .shadow(color: Color.black.opacity(state.backgroundStyle == .solid ? 0.3 : 0.5), radius: state.isExpanded ? 30 : 15, x: 0, y: 10)
-                .zIndex(0)
-                .allowsHitTesting(true) 
+                .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 32 : 14, style: .continuous))
             
-            // Content Layer (Buttons, text, etc)
-            contentForMode(state.mode)
-                .opacity(state.isDisabled || state.mode == .idle ? 0.01 : 1)
-                .allowsHitTesting(true)
-                .zIndex(1)
+            // Content Layer
+            Group {
+                contentForMode(state.mode)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 32 : 14, style: .continuous))
         }
-        .contentShape(Rectangle()) // Entire frame is now a hit target
-        .frame(
-            width: state.widthForMode(state.mode, isExpanded: state.isExpanded),
-            height: state.heightForMode(state.mode, isExpanded: state.isExpanded)
-        )
+        .background(Color.clear)
+        .frame(width: state.widthForMode(state.mode, isExpanded: state.isExpanded),
+               height: state.heightForMode(state.mode, isExpanded: state.isExpanded))
         .onHover { hovering in
             state.isHovering = hovering
         }
@@ -519,45 +489,739 @@ struct IslandView: View {
     
     var expandedDashboardContent: some View {
         VStack(spacing: 0) {
-            dashboardStatusBar
-                .padding(.top, 45) // Offset content below the notch area
-            dashboardCategorySelector
-            
-            // Content Area based on Category
-            VStack(spacing: 0) {
-                Divider().background(Color.white.opacity(0.1))
+            // MARK: - Status Bar (Battery, Time, WiFi)
+            HStack {
+                // Battery indicator
+                HStack(spacing: 4) {
+                    Image(systemName: state.isCharging ? "battery.100.bolt" : batteryIcon)
+                        .font(.system(size: 11))
+                        .foregroundColor(state.batteryLevel < 20 ? .red : .green)
+                    Text("\(state.batteryLevel)%")
+                        .font(.system(size: 10, weight: .black))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.05))
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(Color.white.opacity(0.05), lineWidth: 1))
                 
-                if state.activeCategory == "Dispositivos" {
-                    ScrollView(showsIndicators: false) {
-                        dashboardDevicesGrid
-                            .padding(.vertical, 20)
+                Spacer()
+                
+                // Time with status dots
+                VStack(spacing: 2) {
+                    Text(Date(), style: .time)
+                        .font(.system(size: 12, weight: .black, design: .rounded))
+                        .foregroundColor(.white.opacity(0.9))
+                    HStack(spacing: 4) {
+                        Circle().fill(state.isPomodoroRunning ? Color.orange : Color.orange.opacity(0.3))
+                            .frame(width: 5, height: 5)
+                            .shadow(color: state.isPomodoroRunning ? .orange : .clear, radius: 4)
+                        Circle().fill(state.isPlaying ? Color.green : Color.green.opacity(0.3))
+                            .frame(width: 5, height: 5)
                     }
-                } else if state.activeCategory == "Configuración" {
-                    ScrollView(showsIndicators: false) {
-                        settingsWidget
-                            .padding(.horizontal, 25)
-                            .padding(.vertical, 20)
+                }
+                
+                Spacer()
+                
+                // WiFi indicator
+                HStack(spacing: 4) {
+                    Image(systemName: "wifi")
+                        .font(.system(size: 11))
+                        .foregroundColor(.blue)
+                    Text(state.wifiSSID.isEmpty ? "WiFi" : String(state.wifiSSID.prefix(6)))
+                        .font(.system(size: 10, weight: .black))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.05))
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(Color.white.opacity(0.05), lineWidth: 1))
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 12)
+            
+            // MARK: - Tab Navigation (6 tabs)
+            dashboardTabNavigation
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+            
+            // MARK: - Content Area
+            dashboardTabContent
+                .frame(maxHeight: .infinity)
+            
+            // MARK: - Ambient Light Effects
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(0.08))
+                    .frame(width: 150, height: 150)
+                    .blur(radius: 60)
+                    .offset(x: 120, y: 80)
+                Circle()
+                    .fill(Color.blue.opacity(0.06))
+                    .frame(width: 150, height: 150)
+                    .blur(radius: 60)
+                    .offset(x: -120, y: -50)
+            }
+            .allowsHitTesting(false)
+        }
+    }
+    
+    var batteryIcon: String {
+        switch state.batteryLevel {
+        case 0..<10: return "battery.0"
+        case 10..<25: return "battery.25"
+        case 25..<50: return "battery.50"
+        case 50..<75: return "battery.75"
+        default: return "battery.100"
+        }
+    }
+    
+    var dashboardTabNavigation: some View {
+        let tabs = [
+            ("Apps", "square.grid.2x2", "apps"),
+            ("Clip", "clipboard", "clipboard"),
+            ("Nook", "plus.circle", "widgets"),
+            ("Media", "music.note", "media"),
+            ("Focus", "target", "focus"),
+            ("Setup", "gearshape", "settings")
+        ]
+        
+        return HStack(spacing: 6) {
+            ForEach(tabs, id: \.2) { tab in
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        state.activeCategory = tab.2
                     }
-                } else {
-                    ScrollView(showsIndicators: false) {
-                        dashboardAppGridContent
-                            .padding(.vertical, 20)
+                }) {
+                    VStack(spacing: 4) {
+                        Image(systemName: tab.1)
+                            .font(.system(size: 16, weight: .medium))
+                        Text(tab.0)
+                            .font(.system(size: 8, weight: .black))
+                            .textCase(.uppercase)
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(state.activeCategory == tab.2 ? state.accentColor : Color.clear)
+                    .foregroundColor(state.activeCategory == tab.2 ? (state.accentColor == .white ? .black : .black) : .white.opacity(0.4))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .scaleEffect(state.activeCategory == tab.2 ? 1.02 : 1.0)
+                .shadow(color: state.activeCategory == tab.2 ? state.accentColor.opacity(0.3) : .clear, radius: 8)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    var dashboardTabContent: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 16) {
+                switch state.activeCategory {
+                case "apps":
+                    dashboardAppsView
+                case "clipboard":
+                    dashboardClipboardView
+                case "widgets":
+                    dashboardWidgetsView
+                case "media":
+                    dashboardMediaView
+                case "focus":
+                    dashboardFocusView
+                case "settings":
+                    dashboardSettingsView
+                default:
+                    dashboardAppsView
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 30)
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: state.activeCategory)
+    }
+    
+    // MARK: - Apps Tab
+    var dashboardAppsView: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+            ForEach(getAppsForCategory("apps"), id: \.id) { app in
+                VStack(spacing: 8) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(Color(white: 0.1))
+                            .frame(width: 56, height: 56)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                            )
+                            .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
+                        
+                        Image(systemName: app.icon)
+                            .font(.system(size: 22))
+                            .foregroundColor(app.color)
+                        
+                        // Badge
+                        if let badge = app.badge, !badge.isEmpty {
+                            Text(badge)
+                                .font(.system(size: 9, weight: .black))
+                                .foregroundColor(.white)
+                                .frame(width: 18, height: 18)
+                                .background(Color.red)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.black, lineWidth: 2))
+                                .offset(x: 20, y: -20)
+                        }
+                    }
+                    .scaleEffect(state.selectedApp == app.id ? 0.95 : 1.0)
                     
-                    if state.selectedApp != nil {
-                        dashboardContextualWidgets
-                            .padding(.bottom, 20)
+                    Text(app.name)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.white.opacity(0.5))
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.2)) {
+                        state.openApp(named: app.id)
                     }
                 }
             }
-            .animation(.spring(), value: state.selectedApp)
-            .animation(.spring(), value: state.activeCategory)
-            
-            Spacer(minLength: 20)
-            
-            dashboardFooter
         }
     }
+    
+    // MARK: - Widgets Tab (Nook)
+    var dashboardWidgetsView: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                // Weather Widget
+                widgetCard(icon: "cloud.sun.fill", iconColor: .cyan, title: "CLIMA", mainText: "24°", subText: "Soleado")
+                
+                // Calendar Widget  
+                widgetCard(icon: "calendar", iconColor: .pink, title: "HOY", mainText: "Sin eventos", subText: "Próximo")
+            }
+            
+            // Camera Preview Widget
+            HStack {
+                ZStack {
+                    Circle()
+                        .fill(Color.black)
+                        .frame(width: 36, height: 36)
+                        .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
+                    Image(systemName: "eye")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white)
+                }
+                
+                Text("PREVISUALIZAR CÁMARA")
+                    .font(.system(size: 10, weight: .black))
+                    .textCase(.uppercase)
+                
+                Spacer()
+                
+                Text("ACTIVO")
+                    .font(.system(size: 9, weight: .black))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.1))
+                    .clipShape(Capsule())
+            }
+            .padding(16)
+            .background(Color.white.opacity(0.03))
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.05), lineWidth: 1))
+        }
+    }
+    
+    func widgetCard(icon: String, iconColor: Color, title: String, mainText: String, subText: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 14))
+                    .foregroundColor(iconColor)
+                Spacer()
+                Text(title)
+                    .font(.system(size: 9, weight: .black))
+                    .foregroundColor(.white.opacity(0.4))
+            }
+            
+            Text(mainText)
+                .font(.system(size: 20, weight: .black))
+                .lineLimit(1)
+            
+            Text(subText)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(.white.opacity(0.4))
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.03))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.05), lineWidth: 1))
+    }
+    
+    // MARK: - Media Tab
+    var dashboardMediaView: some View {
+        VStack(spacing: 16) {
+            // Now Playing Card
+            HStack(spacing: 16) {
+                // Album Art
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(LinearGradient(colors: [.purple, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 72, height: 72)
+                        .shadow(color: .purple.opacity(0.4), radius: 12)
+                    
+                    if let artwork = state.trackArtwork {
+                        Image(nsImage: artwork)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 72, height: 72)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    } else {
+                        Image(systemName: "music.note")
+                            .font(.system(size: 28))
+                            .foregroundColor(.white)
+                    }
+                }
+                
+                // Song Info + Controls
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(state.songTitle.isEmpty ? "No reproduciendo" : state.songTitle)
+                        .font(.system(size: 16, weight: .black))
+                        .lineLimit(1)
+                    
+                    Text("\(state.artistName) • \(state.currentPlayer)")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.white.opacity(0.4))
+                        .textCase(.uppercase)
+                        .lineLimit(1)
+                    
+                    Spacer().frame(height: 8)
+                    
+                    // Playback Controls
+                    HStack(spacing: 16) {
+                        Button(action: { state.previousTrack() }) {
+                            Image(systemName: "backward.fill")
+                                .font(.system(size: 16))
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Button(action: { state.musicControl("playpause") }) {
+                            Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(.black)
+                                .frame(width: 36, height: 36)
+                                .background(Color.white)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Button(action: { state.nextTrack() }) {
+                            Image(systemName: "forward.fill")
+                                .font(.system(size: 16))
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                
+                Spacer()
+                
+                // Audio Visualizer
+                MusicWaveform(isPlaying: state.isPlaying, color: .orange, barCount: 5, maxHeight: 32)
+                    .padding(10)
+                    .background(Color.black.opacity(0.4))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .padding(18)
+            .background(Color.white.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 28).stroke(Color.white.opacity(0.08), lineWidth: 1))
+            
+            // Volume & Brightness Sliders
+            HStack(spacing: 12) {
+                sliderCard(icon: "speaker.wave.2.fill", value: Binding(
+                    get: { Float(state.volume) },
+                    set: { state.setSystemVolume($0) }
+                ), label: "VOL")
+                
+                sliderCard(icon: "sun.max.fill", value: Binding(
+                    get: { state.systemBrightness },
+                    set: { state.setSystemBrightness($0) }
+                ), label: "BRILLO")
+            }
+        }
+    }
+    
+    func sliderCard(icon: String, value: Binding<Float>, label: String) -> some View {
+        VStack(spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.4))
+                Spacer()
+                Text("\(Int(value.wrappedValue * 100))%")
+                    .font(.system(size: 9, weight: .black))
+            }
+            
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.1))
+                        .frame(height: 6)
+                    
+                    Capsule()
+                        .fill(Color.white.opacity(0.8))
+                        .frame(width: CGFloat(value.wrappedValue) * geo.size.width, height: 6)
+                }
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { gesture in
+                            let percent = min(max(0, Float(gesture.location.x / geo.size.width)), 1)
+                            value.wrappedValue = percent
+                        }
+                )
+            }
+            .frame(height: 6)
+        }
+        .padding(14)
+        .background(Color.white.opacity(0.03))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.05), lineWidth: 1))
+    }
+    
+    // MARK: - Shelf Tab
+    var dashboardShelfView: some View {
+        VStack(spacing: 16) {
+            // Drop Zone
+            VStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.1))
+                        .frame(width: 56, height: 56)
+                    Image(systemName: "arrow.up.doc")
+                        .font(.system(size: 24))
+                        .foregroundColor(.blue)
+                }
+                
+                VStack(spacing: 4) {
+                    Text("SUELTA ARCHIVOS AQUÍ")
+                        .font(.system(size: 11, weight: .black))
+                        .foregroundColor(.white.opacity(0.4))
+                    Text("Multitarea rápida")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 40)
+            .background(
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .stroke(style: StrokeStyle(lineWidth: 2, dash: [8]))
+                    .foregroundColor(.white.opacity(0.1))
+            )
+            .contentShape(Rectangle())
+            
+            // Recent Files
+            if !state.clipboardHistory.isEmpty {
+                ForEach(state.clipboardHistory.prefix(3), id: \.self) { item in
+                    HStack {
+                        Image(systemName: "doc.text.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.orange)
+                        Text(item.prefix(30))
+                            .font(.system(size: 10, weight: .bold))
+                            .lineLimit(1)
+                        Spacer()
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10))
+                            .foregroundColor(.white.opacity(0.3))
+                    }
+                    .padding(12)
+                    .background(Color.white.opacity(0.03))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.05), lineWidth: 1))
+                }
+            }
+        }
+    }
+    
+    // MARK: - Focus Tab (Pomodoro)
+    var dashboardFocusView: some View {
+        VStack(spacing: 20) {
+            // Circular Timer
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.08), lineWidth: 8)
+                    .frame(width: 120, height: 120)
+                
+                Circle()
+                    .trim(from: 0, to: CGFloat(state.pomodoroRemaining) / CGFloat(state.pomodoroMode == .work ? 25 * 60 : 5 * 60))
+                    .stroke(state.accentColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .frame(width: 120, height: 120)
+                    .rotationEffect(.degrees(-90))
+                    .shadow(color: state.accentColor.opacity(0.5), radius: 8)
+                
+                VStack(spacing: 2) {
+                    Text(state.formatPomodoroTime())
+                        .font(.system(size: 24, weight: .black, design: .rounded))
+                    Text("MINUTOS")
+                        .font(.system(size: 8, weight: .black))
+                        .foregroundColor(.white.opacity(0.4))
+                }
+            }
+            
+            // Control Buttons
+            HStack(spacing: 12) {
+                Button(action: { 
+                    withAnimation { 
+                        if state.isPomodoroRunning {
+                            state.pausePomodoro()
+                        } else {
+                            state.startPomodoro()
+                        }
+                    }
+                }) {
+                    Text(state.isPomodoroRunning ? "PAUSAR FOCO" : "INICIAR FOCO")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundColor(state.isPomodoroRunning ? .red : .black)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(state.isPomodoroRunning ? Color.red.opacity(0.15) : Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(state.isPomodoroRunning ? Color.red.opacity(0.5) : Color.clear, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                
+                Button(action: { state.resetPomodoro() }) {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.5))
+                        .frame(width: 44, height: 44)
+                        .background(Color.white.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.05), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+            
+            // Customizable Time
+            if !state.isPomodoroRunning {
+                HStack(spacing: 8) {
+                    ForEach([15, 25, 45, 60], id: \.self) { mins in
+                        Button(action: { state.setPomodoroDuration(mins) }) {
+                            Text("\(mins)m")
+                                .font(.system(size: 10, weight: .bold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .background(state.pomodoroRemaining == Double(mins * 60) ? state.accentColor : Color.white.opacity(0.1))
+                                .foregroundColor(state.pomodoroRemaining == Double(mins * 60) ? .black : .white)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 20)
+                
+                // Custom Timer Slider
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("PERSONALIZADO:")
+                            .font(.system(size: 8, weight: .black))
+                            .foregroundColor(.white.opacity(0.4))
+                        Spacer()
+                        Text("\(Int(state.customTimerMinutes)) MINUTOS")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .padding(.horizontal, 22)
+                    
+                    HStack(spacing: 12) {
+                        Slider(value: $state.customTimerMinutes, in: 1...120, step: 1)
+                            .accentColor(state.accentColor)
+                        
+                        Button(action: { state.setPomodoroDuration(Int(state.customTimerMinutes)) }) {
+                            Text("FIJAR")
+                                .font(.system(size: 9, weight: .black))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(state.accentColor.opacity(0.15))
+                                .foregroundColor(state.accentColor)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 22)
+                }
+            }
+            
+            // Focus Status
+            HStack(spacing: 6) {
+                Image(systemName: "eye")
+                    .font(.system(size: 10))
+                Text("BLOQUEO DE DISTRACCIONES:")
+                    .font(.system(size: 9, weight: .bold))
+                Text(state.isPomodoroRunning ? "ACTIVO" : "INACTIVO")
+                    .font(.system(size: 9, weight: .black))
+                    .foregroundColor(state.isPomodoroRunning ? .green : .white.opacity(0.4))
+            }
+            .foregroundColor(.white.opacity(0.4))
+        }
+        .padding(.vertical, 20)
+    }
+    
+    // MARK: - Clipboard Tab
+    var dashboardClipboardView: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("HISTORIAL DE PORTAPAPELES")
+                    .font(.system(size: 9, weight: .black))
+                    .opacity(0.4)
+                Spacer()
+                Button(action: { state.clipboardHistory.removeAll() }) {
+                    Text("LIMPIAR")
+                        .font(.system(size: 8, weight: .black))
+                        .foregroundColor(.red.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+            }
+            
+            if state.clipboardHistory.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.system(size: 32))
+                        .opacity(0.1)
+                    Text("Vacío")
+                        .font(.system(size: 10, weight: .bold))
+                        .opacity(0.3)
+                }
+                .frame(height: 150)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(state.clipboardHistory, id: \.self) { item in
+                        Button(action: { state.pasteFromHistory(item) }) {
+                            HStack {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(state.accentColor)
+                                
+                                Text(item)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 10))
+                                    .opacity(0.3)
+                            }
+                            .padding(12)
+                            .background(Color.white.opacity(0.03))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Settings Tab
+    var dashboardSettingsView: some View {
+        VStack(spacing: 12) {
+            // Background Style
+            HStack {
+                Text("Estilo")
+                    .font(.system(size: 12, weight: .bold))
+                Spacer()
+                Picker("", selection: $state.backgroundStyle) {
+                    ForEach(BackgroundStyle.allCases, id: \.self) { style in
+                        Text(style.rawValue).tag(style)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 120)
+            }
+            .padding(12)
+            .background(Color.white.opacity(0.03))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            
+            // Accent Color
+            HStack {
+                Text("Acento")
+                    .font(.system(size: 12, weight: .bold))
+                Spacer()
+                HStack(spacing: 8) {
+                    ForEach([Color.orange, Color.blue, Color.purple, Color.green, Color.red], id: \.self) { color in
+                        Circle()
+                            .fill(color)
+                            .frame(width: 16, height: 16)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white, lineWidth: state.accentColor == color ? 2 : 0)
+                            )
+                            .onTapGesture {
+                                state.accentColor = color
+                            }
+                    }
+                }
+            }
+            .padding(12)
+            .background(Color.white.opacity(0.03))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            
+            settingsRow(icon: "hand.tap.fill", title: "Gestos", value: "Habilitados", color: .blue)
+            
+            Button(action: { state.collapse() }) {
+                HStack {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.red.opacity(0.6))
+                    Text("Cerrar Island")
+                        .font(.system(size: 12, weight: .bold))
+                    Spacer()
+                }
+                .padding(14)
+                .background(Color.white.opacity(0.03))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    func settingsRow(icon: String, title: String, value: String, color: Color) -> some View {
+        HStack {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(color.opacity(0.15))
+                    .frame(width: 32, height: 32)
+                Image(systemName: icon)
+                    .font(.system(size: 14))
+                    .foregroundColor(color)
+            }
+            
+            Text(title)
+                .font(.system(size: 12, weight: .bold))
+            
+            Spacer()
+            
+            Text(value)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.white.opacity(0.4))
+            
+            Image(systemName: "chevron.right")
+                .font(.system(size: 10))
+                .foregroundColor(.white.opacity(0.2))
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.03))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.05), lineWidth: 1))
+    }
+
     var dashboardAppGridContent: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 30) {
             ForEach(getAppsForCategory(state.activeCategory), id: \.id) { app in
@@ -901,18 +1565,13 @@ struct IslandView: View {
 
     func getAppsForCategory(_ cat: String) -> [AppData] {
         switch cat {
-        case "Favoritos":
+        case "apps":
             return [
                 AppData(id: "Meeting", name: "Reunión", icon: "video.fill", color: .blue, badge: nil),
-                AppData(id: "Clipboard", name: "Papeles", icon: "doc.on.clipboard.fill", color: .orange, badge: state.clipboardHistory.isEmpty ? nil : "\(state.clipboardHistory.count)"),
-                AppData(id: "Pomodoro", name: "Pomodoro", icon: "timer", color: .red, badge: state.isPomodoroRunning ? "ON" : nil),
-                AppData(id: "Calendar", name: "Eventos", icon: "calendar", color: .red, badge: nil)
-            ]
-        case "Recientes":
-            return [
-                AppData(id: "Spotify", name: "Spotify", icon: "play.fill", color: .green, badge: nil),
+                AppData(id: "Finder", name: "Finder", icon: "folder.fill", color: .orange, badge: "!"),
                 AppData(id: "Notes", name: "Notas", icon: "note.text", color: .yellow, badge: nil),
-                AppData(id: "Finder", name: "Finder", icon: "folder.fill", color: .blue, badge: nil)
+                AppData(id: "Calendar", name: "Eventos", icon: "calendar", color: .red, badge: nil),
+                AppData(id: "Chrome", name: "Chrome", icon: "globe", color: .blue, badge: nil)
             ]
         case "Utilidades":
             return [
@@ -995,30 +1654,40 @@ struct IslandView: View {
             }
             
             // Bottom Section: Controls
-            HStack {
-                // Volume
-                HStack(spacing: 12) {
-                    Image(systemName: "speaker.wave.1.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                    
-                    Capsule()
-                        .fill(Color.white.opacity(0.1))
-                        .frame(width: 60, height: 4)
-                        .overlay(alignment: .leading) {
-                            Capsule()
-                                .fill(Color.white.opacity(0.3))
-                                .frame(width: 30, height: 4) // Static representation for now
-                        }
-                    
-                    Image(systemName: "speaker.wave.3.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+            ZStack {
+                // Left: Volume
+                HStack {
+                    HStack(spacing: 8) {
+                        Image(systemName: "speaker.wave.1.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                        
+                        Capsule()
+                            .fill(Color.white.opacity(0.1))
+                            .frame(width: 60, height: 4)
+                            .overlay(alignment: .leading) {
+                                GeometryReader { geo in
+                                    Capsule()
+                                        .fill(Color.white)
+                                        .frame(width: max(0, min(geo.size.width, geo.size.width * CGFloat(state.appVolume))), height: 4)
+                                }
+                            }
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { gesture in
+                                        let percent = min(max(0, Float(gesture.location.x / 60)), 1)
+                                        state.setMusicVolume(percent)
+                                    }
+                            )
+                        
+                        Image(systemName: "speaker.wave.3.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
                 }
                 
-                Spacer()
-                
-                // Main Controls
+                // Center: Main Controls
                 HStack(spacing: 30) {
                     Button(action: { state.previousTrack() }) {
                         Image(systemName: "backward.fill")
@@ -1045,15 +1714,16 @@ struct IslandView: View {
                     .buttonStyle(.plain)
                 }
                 
-                Spacer()
-                
-                // AirPlay / More
-                Button(action: { state.openAirPlay() }) {
-                    Image(systemName: "airplayaudio")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
+                // Right: AirPlay
+                HStack {
+                    Spacer()
+                    Button(action: { state.openAirPlay() }) {
+                        Image(systemName: "airplayaudio")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             .padding(.top, 5)
         }
@@ -1065,6 +1735,7 @@ struct IslandView: View {
                     .aspectRatio(contentMode: .fill)
                     .blur(radius: 50)
                     .opacity(0.15)
+                    .clipShape(RoundedRectangle(cornerRadius: 48, style: .continuous))
             }
         }
         .contentShape(Rectangle())

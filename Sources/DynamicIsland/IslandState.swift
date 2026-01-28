@@ -5,6 +5,7 @@ import CoreWLAN
 import IOBluetooth
 import CoreLocation
 import EventKit
+import IOKit
 
 struct NoteItem: Identifiable, Equatable {
     let id: String
@@ -94,6 +95,7 @@ class IslandState: ObservableObject {
     
     // Volume State
     @Published var volume: Double = 0.5
+    @Published var appVolume: Double = 1.0
     
     // Mock Notifications/Messages
     @Published var selectedApp: String? = nil
@@ -104,7 +106,7 @@ class IslandState: ObservableObject {
     @Published var wspBadge: String = ""
     @Published var slackBadge: String = ""
     // Categories and App State
-    @Published var activeCategory: String = "Favoritos" {
+    @Published var activeCategory: String = "apps" {
         didSet {
             selectedApp = nil
         }
@@ -350,6 +352,7 @@ class IslandState: ObservableObject {
             isExpanded = true
         }
         cancelCollapseTimer()
+        refreshVolume()
     }
     
     func collapse() {
@@ -399,6 +402,14 @@ class IslandState: ObservableObject {
     func nextTrack() { musicControl("next track") }
     func previousTrack() { musicControl("previous track") }
     
+    func setMusicVolume(_ level: Float) {
+        self.appVolume = Double(level)
+        let vol = Int(level * 100)
+        let target = (currentPlayer == "Spotify" || currentPlayer == "Music") ? currentPlayer : "Spotify"
+        let script = "tell application \"\(target)\" to set sound volume to \(vol)"
+        executeAppleScript(script)
+    }
+    
     func openAirPlay() {
         // Universal way to open the sound/airplay picker via Control Center
         let script = """
@@ -426,8 +437,70 @@ class IslandState: ObservableObject {
     }
     
     func refreshVolume() {
-        let script = "set volume output volume \(Int(volume * 100))"
+        let script = "output volume of (get volume settings)"
+        if let output = executeAppleScript(script), let vol = Int(output.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            DispatchQueue.main.async {
+                self.volume = Double(vol) / 100.0
+            }
+        }
+    }
+    
+    // MARK: - System Control (Brightness & Volume)
+    
+    @Published var systemBrightness: Float = 0.5
+    
+    func setSystemVolume(_ level: Float) {
+        self.volume = Double(level)
+        let script = "set volume output volume \(Int(level * 100))"
         executeAppleScript(script)
+    }
+    
+    func setSystemBrightness(_ level: Float) {
+        self.systemBrightness = level
+        
+        // Use IOREG/DisplayServices to set brightness
+        // This is a bridge to CoreDisplay for basic brightness control
+        // Note: This often requires private entitlements for full control, but we can try the standard IOKit approach
+        
+        var iterator: io_iterator_t = 0
+        if IOServiceGetMatchingServices(0, IOServiceMatching("IODisplayConnect"), &iterator) == kIOReturnSuccess {
+            var service: io_object_t = 1
+            while service != 0 {
+                service = IOIteratorNext(iterator)
+                if service != 0 {
+                    let key = CFStringCreateWithCString(kCFAllocatorDefault, "IODisplayBrightnessProbe", kCFStringEncodingASCII)
+                    IOODServiceSetValue(service, key, level)
+                    IOObjectRelease(service)
+                }
+            }
+            IOObjectRelease(iterator)
+        }
+        
+        // 2. Try 'brightness' CLI tool fallback
+        let script = "try\ndo shell script \"/usr/local/bin/brightness " + String(level) + "\"\nend try"
+        executeAppleScript(script)
+        
+        // Backup: Brightness via Shortcuts if "Set Brightness" shortcut exists
+        // executeAppleScript("tell application \"Shortcuts Events\" to run shortcut \"Set Brightness\" with input \(level)")
+    }
+    
+    // Helper to interact with IOKit for brightness (simplified)
+    private func IOODServiceSetValue(_ service: io_object_t, _ key: CFString!, _ value: Float) {
+        // In a real App Store app this uses CoreDisplay. 
+        // For this local build, we rely on the generic IODisplay parameters if available.
+        // Since accessing IOKit directly from Swift can be verbose, we'll assume the user
+        // understands this might not work on all external monitors without DDC/CI tools.
+        // For built-in displays, this usually works via IODisplayFloatParameters.
+        
+        let header = "IODisplayParameters" as CFString
+        IORegistryEntrySetCFProperty(service, header, [key: value] as CFDictionary)
+    }
+
+    // MARK: - Pomodoro Customization
+    func setPomodoroDuration(_ minutes: Int) {
+        pomodoroMode = .work
+        pomodoroRemaining = TimeInterval(minutes * 60)
+        isPomodoroRunning = false
     }
 
     // Bluetooth Control (Native)
@@ -885,11 +958,11 @@ class IslandState: ObservableObject {
     func widthForMode(_ mode: IslandMode, isExpanded: Bool) -> CGFloat {
         if isExpanded {
             switch mode {
-            case .compact: return 450
+            case .compact: return 500
             case .music: return 400
             case .timer: return 350
-            case .notes: return 380
-            case .productivity: return 450
+            case .notes: return 400
+            case .productivity: return 500
             default: return 320
             }
         } else {
@@ -909,13 +982,13 @@ class IslandState: ObservableObject {
     func heightForMode(_ mode: IslandMode, isExpanded: Bool) -> CGFloat {
         if isExpanded {
             switch mode {
-            case .compact: return 550
-            case .music: return 220
+            case .compact: return 650
+            case .music: return 240
             case .battery: return 70
             case .volume: return 60
             case .timer: return 180
-            case .notes: return 450
-            case .productivity: return 550
+            case .notes: return 500
+            case .productivity: return 650
             default: return 160
             }
         } else {

@@ -146,6 +146,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let hostingView = NSHostingView(rootView: islandView)
         hostingView.translatesAutoresizingMaskIntoConstraints = false
+        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
         
         // Use simple borderless NSWindow
         let window = IslandWindow(
@@ -157,8 +158,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        window.backgroundColor = NSColor.black
-        window.hasShadow = true
+        window.backgroundColor = NSColor.clear
+        window.isOpaque = false
+        window.hasShadow = false // Shadow is handled by the View
         window.isMovableByWindowBackground = false
         window.isReleasedWhenClosed = false
         window.ignoresMouseEvents = false
