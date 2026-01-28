@@ -150,7 +150,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Use simple borderless NSWindow
         let window = IslandWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 800, height: 200),
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 1000),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false

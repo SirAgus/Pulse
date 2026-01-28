@@ -139,23 +139,10 @@ class IslandState: ObservableObject {
     @Published var isDNDActive: Bool = false
     
     // Customization
-    @Published var pinnedWidgets: [String] = ["eisenhower", "weather", "cpu", "ram"]
+    @Published var pinnedWidgets: [String] = ["weather", "cpu", "ram"]
     @Published var showWidgetPicker: Bool = false
     
-    // Eisenhower Matrix
-    struct TaskItem: Identifiable, Hashable {
-        let id = UUID()
-        var title: String
-        var category: String // "urgent_important", "not_urgent_important", etc.
-    }
-    
-    @Published var tasks: [TaskItem] = [
-        TaskItem(title: "Limpiar casa", category: "not_urgent_not_important"),
-        TaskItem(title: "Buscar trabajo", category: "not_urgent_not_important"),
-        TaskItem(title: "Aprender algo nuevo", category: "not_urgent_not_important"),
-        TaskItem(title: "Cocinar", category: "not_urgent_not_important"),
-        TaskItem(title: "Aprender conducir", category: "not_urgent_not_important")
-    ]
+
     
     // Clipboard
     @Published var clipboardHistory: [String] = []
@@ -1050,13 +1037,13 @@ class IslandState: ObservableObject {
         if isExpanded {
             switch mode {
             case .compact: return 650
-            case .music: return 240
-            case .battery: return 70
-            case .volume: return 60
-            case .timer: return 180
-            case .notes: return 500
+            case .music: return 280
+            case .battery: return 650
+            case .volume: return 650
+            case .timer: return 650
+            case .notes: return 650
             case .productivity: return 650
-            default: return 160
+            default: return 650
             }
         } else {
             switch mode {

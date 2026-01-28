@@ -10,8 +10,8 @@ struct IslandView: View {
     var body: some View {
         ZStack {
             // Main Island Background with Tap Gesture
-            RoundedRectangle(cornerRadius: state.isExpanded ? 32 : 14, style: .continuous)
-                .fill((state.backgroundStyle == .solid || !state.isExpanded) && state.mode != .idle ? Color.black : Color.black.opacity(0.1))
+            RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
+                .fill((state.backgroundStyle == .solid || !state.isExpanded) && state.mode != .idle ? state.islandColor.opacity(0.98) : Color.black.opacity(0.1))
                 .onTapGesture {
                     if !state.isExpanded {
                         state.toggleExpand()
@@ -22,28 +22,28 @@ struct IslandView: View {
                     ZStack {
                         if state.backgroundStyle == .liquidGlass {
                             VisualEffectView(material: .headerView, blendingMode: .behindWindow)
-                                .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 32 : 14, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: state.isExpanded ? 32 : 14, style: .continuous)
+                                    RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
                                         .stroke(Color.white.opacity(0.1), lineWidth: 1)
                                 )
                         } else if state.backgroundStyle == .liquidGlassDark {
                             VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
-                                .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 32 : 14, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: state.isExpanded ? 32 : 14, style: .continuous)
+                                    RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
                                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                                 )
                         }
                     }
                 )
-                .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 32 : 14, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
             
             // Content Layer
             Group {
                 contentForMode(state.mode)
             }
-            .clipShape(RoundedRectangle(cornerRadius: state.isExpanded ? 32 : 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
         }
         .background(Color.clear)
         .frame(width: state.widthForMode(state.mode, isExpanded: state.isExpanded),
@@ -164,6 +164,14 @@ struct IslandView: View {
         }
     }
     
+    private var islandCornerRadius: CGFloat {
+        if state.isExpanded {
+            return state.mode == .music ? 40 : 48
+        } else {
+            return 20
+        }
+    }
+
     var compactMusicContent: some View {
         HStack(spacing: 12) {
             // Artwork / App Icon on the left
@@ -642,28 +650,78 @@ struct IslandView: View {
         .onAppear {
             // Ensure window becomes key when interacting if it wasn't
             if let window = NSApp.windows.first(where: { $0 is IslandWindow }) {
-                window.makeKey()
+                window.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
             }
         }
     }
     
     // MARK: - Apps Tab
     var dashboardAppsView: some View {
-        VStack(spacing: 24) {
-            // Smart Widgets Section
-            VStack(alignment: .leading, spacing: 12) {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 28) {
+                // Apps Grid
+                VStack(alignment: .leading, spacing: 15) {
+                    Text("ACCESO RÁPIDO")
+                        .font(.system(size: 9, weight: .black))
+                        .foregroundColor(.white.opacity(0.3))
+                        .padding(.horizontal, 4)
+                    
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+                        ForEach(getAppsForCategory("apps"), id: \.id) { app in
+                            VStack(spacing: 10) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .fill(Color.white.opacity(0.06))
+                                        .frame(width: 52, height: 52)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                                        )
+                                    
+                                    Image(systemName: app.icon)
+                                        .font(.system(size: 22))
+                                        .foregroundColor(app.color)
+                                    
+                                    if let badge = app.badge, !badge.isEmpty {
+                                        Text(badge)
+                                            .font(.system(size: 9, weight: .black))
+                                            .foregroundColor(.white)
+                                            .frame(width: 18, height: 18)
+                                            .background(Color.red)
+                                            .clipShape(Circle())
+                                            .offset(x: 20, y: -20)
+                                    }
+                                }
+                                
+                                Text(app.name)
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(.white.opacity(0.4))
+                            }
+                            .onTapGesture {
+                                state.openApp(named: app.id)
+                            }
+                        }
+                    }
+                }
+
+                // Header with Widget Adder
                 HStack {
-                    Text("WIDGETS SELECCIONADOS")
-                        .font(.system(size: 8, weight: .black))
+                    Text("WIDGETS DEL SISTEMA")
+                        .font(.system(size: 9, weight: .black))
                         .foregroundColor(.white.opacity(0.3))
                     Spacer()
-                    Button(action: { state.showWidgetPicker.toggle() }) {
+                    Button(action: { withAnimation(.spring()) { state.showWidgetPicker.toggle() } }) {
                         HStack(spacing: 4) {
                             Image(systemName: "plus.circle.fill")
-                            Text("AÑADIR")
+                            Text(state.showWidgetPicker ? "LISTO" : "AÑADIR")
                         }
-                        .font(.system(size: 8, weight: .bold))
+                        .font(.system(size: 9, weight: .bold))
                         .foregroundColor(state.accentColor)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(state.accentColor.opacity(0.1))
+                        .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
                 }
@@ -671,117 +729,146 @@ struct IslandView: View {
                 
                 if state.showWidgetPicker {
                     widgetSelectionPicker
-                        .transition(.scale.combined(with: .opacity))
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(state.pinnedWidgets, id: \.self) { widgetId in
-                            Group {
-                                switch widgetId {
-                                case "cpu":
-                                    systemWidget(title: "CPU", value: "\(Int(state.cpuUsage))%", icon: "cpu", color: .green, progress: state.cpuUsage/100)
-                                case "ram":
-                                    systemWidget(title: "RAM", value: "\(Int(state.ramUsage))%", icon: "memorychip", color: .blue, progress: state.ramUsage/100)
-                                case "disk":
-                                    systemWidget(title: "DISCO", value: "42GB", icon: "internaldrive", color: .purple, progress: 0.65)
-                                case "weather":
-                                    miniWidget(icon: "cloud.sun.fill", color: .cyan, title: "CLIMA", value: "\(Int(state.currentTemp ?? 0))°")
-                                case "calendar":
-                                    miniWidget(icon: "calendar", color: .pink, title: "HOY", value: state.nextEvent?.title ?? "Libre")
-                                case "camera":
-                                    miniWidget(icon: "camera.fill", color: state.accentColor, title: "CAM", value: "LIVE")
-                                default:
-                                    EmptyView()
-                                }
-                            }
-                            .onTapGesture {
-                                withAnimation { state.toggleWidget(widgetId) }
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-            
-            // Apps Grid
-            VStack(alignment: .leading, spacing: 12) {
-                Text("ACCESO RÁPIDO")
-                    .font(.system(size: 8, weight: .black))
-                    .foregroundColor(.white.opacity(0.3))
-                    .padding(.horizontal, 4)
-                
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
-                    ForEach(getAppsForCategory("apps"), id: \.id) { app in
-                        VStack(spacing: 8) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(Color.white.opacity(0.05))
-                                    .frame(width: 50, height: 50)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                                    )
-                                
-                                Image(systemName: app.icon)
-                                    .font(.system(size: 20))
-                                    .foregroundColor(app.color)
-                                
-                                if let badge = app.badge, !badge.isEmpty {
-                                    Text(badge)
-                                        .font(.system(size: 8, weight: .black))
-                                        .foregroundColor(.white)
-                                        .frame(width: 16, height: 16)
-                                        .background(Color.red)
-                                        .clipShape(Circle())
-                                        .offset(x: 18, y: -18)
-                                }
-                            }
-                            
-                            Text(app.name)
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundColor(.white.opacity(0.4))
-                        }
-                        .onTapGesture {
-                            state.openApp(named: app.id)
+                // Dynamic Widgets Area
+                VStack(spacing: 20) {
+                    ForEach(state.pinnedWidgets, id: \.self) { widgetId in
+                        switch widgetId {
+                        case "photos":
+                            photosWidget
+                        case "weather":
+                            weatherFeatureWidget
+                        case "performance":
+                            performanceBentoWidget
+                        case "camera":
+                            cameraSmallWidget
+                        default:
+                            EmptyView()
                         }
                     }
                 }
             }
+            .padding(.top, 5)
         }
     }
     
-    var widgetSelectionPicker: some View {
-        HStack(spacing: 10) {
-            let options = [
-                ("cpu", "cpu", Color.green),
-                ("ram", "memorychip", Color.blue),
-                ("weather", "cloud.sun.fill", Color.cyan),
-                ("calendar", "calendar", Color.pink),
-                ("camera", "camera.fill", state.accentColor),
-                ("disk", "internaldrive", Color.purple)
-            ]
-            
-            ForEach(options, id: \.0) { opt in
-                Button(action: { 
-                    withAnimation { state.toggleWidget(opt.0) }
-                }) {
-                    ZStack {
-                        Circle()
-                            .fill(state.pinnedWidgets.contains(opt.0) ? opt.2 : Color.white.opacity(0.1))
-                            .frame(width: 32, height: 32)
-                        
-                        Image(systemName: opt.1)
-                            .font(.system(size: 14))
-                            .foregroundColor(state.pinnedWidgets.contains(opt.0) ? .black : .white)
-                    }
+
+    
+    var photosWidget: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.black)
+                    .frame(height: 140)
+                
+                VStack(spacing: 15) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.system(size: 32))
+                        .foregroundStyle(LinearGradient(colors: [.orange, .red, .purple], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    
+                    Text("Aquí se mostrarán las fotos cuando terminen de procesarse.")
+                        .font(.system(size: 11, weight: .bold))
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(.white.opacity(0.6))
+                        .padding(.horizontal, 40)
                 }
-                .buttonStyle(.plain)
             }
         }
-        .padding(10)
-        .background(Color.white.opacity(0.05))
-        .clipShape(Capsule())
+        .padding(12)
+        .background(Color.white.opacity(0.03))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+    
+    var weatherFeatureWidget: some View {
+        HStack(spacing: 15) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(state.weatherCity.uppercased())
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundColor(.cyan)
+                Text("\(Int(state.currentTemp ?? 0))°")
+                    .font(.system(size: 32, weight: .black))
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .trailing, spacing: 4) {
+                Image(systemName: "cloud.sun.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(.cyan)
+                Text(state.precipitationProb.map { "Lluvia: \($0)%" } ?? "Más detalles")
+                    .font(.system(size: 9, weight: .bold))
+                    .opacity(0.5)
+            }
+        }
+        .padding(20)
+        .background(Color.cyan.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+    
+    var performanceBentoWidget: some View {
+        HStack(spacing: 12) {
+            systemWidget(title: "CPU", value: "\(Int(state.cpuUsage))%", icon: "cpu", color: .green, progress: state.cpuUsage/100)
+            systemWidget(title: "RAM", value: "\(Int(state.ramUsage))%", icon: "memorychip", color: .blue, progress: state.ramUsage/100)
+        }
+    }
+    
+    var cameraSmallWidget: some View {
+        HStack(spacing: 15) {
+            Circle()
+                .fill(.red)
+                .frame(width: 8, height: 8)
+                .shadow(color: .red, radius: 4)
+            Text("CÁMARA EN VIVO")
+                .font(.system(size: 9, weight: .black))
+            Spacer()
+            Image(systemName: "video.fill")
+                .font(.system(size: 12))
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 15)
+        .background(state.accentColor.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 15))
+    }
+    
+    var widgetSelectionPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                let options = [
+
+                    ("weather", "cloud.sun.fill", Color.cyan),
+                    ("performance", "cpu", Color.green),
+                    ("photos", "photo", Color.purple),
+                    ("camera", "camera.fill", state.accentColor)
+                ]
+                
+                ForEach(options, id: \.0) { opt in
+                    Button(action: { 
+                        withAnimation(.spring()) { state.toggleWidget(opt.0) }
+                    }) {
+                        VStack(spacing: 6) {
+                            ZStack {
+                                Circle()
+                                    .fill(state.pinnedWidgets.contains(opt.0) ? opt.2 : Color.white.opacity(0.1))
+                                    .frame(width: 36, height: 36)
+                                
+                                Image(systemName: opt.1)
+                                    .font(.system(size: 16))
+                                    .foregroundColor(state.pinnedWidgets.contains(opt.0) ? .black : .white)
+                            }
+                            Text(opt.0.uppercased())
+                                .font(.system(size: 7, weight: .black))
+                                .opacity(0.5)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(15)
+        }
+        .background(Color.white.opacity(0.02))
+        .clipShape(RoundedRectangle(cornerRadius: 15))
     }
     
     func miniWidget(icon: String, color: Color, title: String, value: String) -> some View {
@@ -1326,24 +1413,41 @@ struct IslandView: View {
             .background(Color.white.opacity(0.03))
             .clipShape(RoundedRectangle(cornerRadius: 14))
             
-            // Accent Color
-            HStack {
-                Text("Acento")
-                    .font(.system(size: 12, weight: .bold))
-                Spacer()
-                HStack(spacing: 8) {
-                    ForEach([Color.orange, Color.blue, Color.purple, Color.green, Color.red], id: \.self) { color in
-                        Circle()
-                            .fill(color)
-                            .frame(width: 16, height: 16)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.white, lineWidth: state.accentColor == color ? 2 : 0)
-                            )
-                            .onTapGesture {
-                                state.accentColor = color
-                            }
+            // Solid Background Color Picker (Visible only if style is solid)
+            if state.backgroundStyle == .solid {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("COLOR DEL FONDO (SOLIDO)")
+                        .font(.system(size: 9, weight: .black))
+                        .opacity(0.4)
+                    
+                    HStack {
+                        ColorPicker("", selection: $state.islandColor)
+                            .labelsHidden()
+                        Spacer()
+                        Text("Personalizado")
+                            .font(.system(size: 11, weight: .bold))
+                            .opacity(0.6)
                     }
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.03))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            
+            // Accent Color
+            VStack(alignment: .leading, spacing: 10) {
+                Text("COLOR DE ACENTO")
+                    .font(.system(size: 9, weight: .black))
+                    .opacity(0.4)
+                
+                HStack {
+                    ColorPicker("", selection: $state.accentColor)
+                        .labelsHidden()
+                    Spacer()
+                    Text("Personalizado")
+                        .font(.system(size: 11, weight: .bold))
+                        .opacity(0.6)
                 }
             }
             .padding(12)
@@ -1611,7 +1715,6 @@ struct IslandView: View {
             .padding(.horizontal, 15)
             .padding(.vertical, 15)
         }
-        .frame(maxHeight: 280)
     }
 
     func deviceRow(name: String, detail: String, icon: String, battery: Int, isCharging: Bool) -> some View {
@@ -1727,9 +1830,9 @@ struct IslandView: View {
                     }
                     .padding(18)
                     .background(
-                        RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
                             .fill(LinearGradient(colors: [Color.white.opacity(0.05), Color.black.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            .overlay(RoundedRectangle(cornerRadius: 32).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                            .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.1), lineWidth: 1))
                     )
                 }
                 .buttonStyle(.plain)
@@ -1741,7 +1844,7 @@ struct IslandView: View {
 
     var footerArtworkView: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(LinearGradient(colors: [state.accentColor.opacity(0.2), Color.black], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(width: 56, height: 56)
             
@@ -1750,7 +1853,7 @@ struct IslandView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 56, height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
             } else if let icon = getAppIcon(for: state.currentPlayer) {
                 Image(nsImage: icon)
                     .resizable()
@@ -1818,7 +1921,7 @@ struct IslandView: View {
                 .buttonStyle(.plain)
                 
                 ZStack {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(state.accentColor.opacity(0.15))
                         .frame(width: 64, height: 64)
                     
@@ -1827,7 +1930,7 @@ struct IslandView: View {
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .frame(width: 64, height: 64)
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                             .shadow(color: state.accentColor.opacity(0.3), radius: 10, y: 5)
                     } else {
                         Image(systemName: "music.note")
@@ -1958,7 +2061,7 @@ struct IslandView: View {
                     .aspectRatio(contentMode: .fill)
                     .blur(radius: 50)
                     .opacity(0.15)
-                    .clipShape(RoundedRectangle(cornerRadius: 48, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
             }
         }
         .contentShape(Rectangle())
@@ -2602,20 +2705,8 @@ struct IslandView: View {
             Label("Color Fondo", systemImage: "paintpalette.fill")
                 .font(.system(size: 12, weight: .bold))
             Spacer()
-            HStack(spacing: 8) {
-                ForEach([Color.black, Color(hex: "1a1a1a"), Color(hex: "001a33"), Color(hex: "1a0033")], id: \.self) { color in
-                    Button(action: { state.islandColor = color }) {
-                        Circle()
-                            .fill(color)
-                            .frame(width: 20, height: 20)
-                            .overlay(
-                                Circle()
-                                    .stroke(state.islandColor == color ? Color.white : Color.white.opacity(0.2), lineWidth: state.islandColor == color ? 2 : 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
+            ColorPicker("", selection: $state.islandColor)
+                .labelsHidden()
         }
     }
 
@@ -2646,20 +2737,8 @@ struct IslandView: View {
             Label("Color Acento", systemImage: "sparkles")
                 .font(.system(size: 12, weight: .bold))
             Spacer()
-            HStack(spacing: 8) {
-                ForEach([Color.orange, Color.green, Color.blue, Color.purple], id: \.self) { color in
-                    Button(action: { state.accentColor = color }) {
-                        Circle()
-                            .fill(color)
-                            .frame(width: 20, height: 20)
-                            .overlay(
-                                Circle()
-                                    .stroke(state.accentColor == color ? Color.white : Color.clear, lineWidth: 2)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
+            ColorPicker("", selection: $state.accentColor)
+                .labelsHidden()
         }
     }
 
