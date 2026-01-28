@@ -30,13 +30,7 @@ struct IslandView: View {
                     }
                 )
                 .contentShape(Rectangle())
-                .onTapGesture {
-                    if !state.isExpanded {
-                        withAnimation(.spring()) {
-                            state.toggleExpand()
-                        }
-                    }
-                }
+                .contentShape(Rectangle())
                 .shadow(color: Color.black.opacity(state.backgroundStyle == .solid ? 0 : 0.3), radius: 20, x: 0, y: 10)
                 .zIndex(0)
             
@@ -45,6 +39,14 @@ struct IslandView: View {
                 .opacity(state.mode == .idle ? 0 : 1)
                 .allowsHitTesting(true)
                 .zIndex(1)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: state.isExpanded ? 35 : 20, style: .continuous))
+        .onTapGesture {
+            if !state.isExpanded {
+                withAnimation(.spring()) {
+                    state.toggleExpand()
+                }
+            }
         }
         .frame(
             width: state.widthForMode(state.mode, isExpanded: state.isExpanded),
@@ -1107,9 +1109,9 @@ struct IslandView: View {
                 }) {
                     VStack(spacing: 8) {
                         Image(systemName: categoryIcon(for: cat))
-                            .font(.system(size: 16, weight: state.activeCategory == cat ? .bold : .medium))
+                            .font(.system(size: 18, weight: state.activeCategory == cat ? .bold : .medium))
                             .foregroundColor(state.activeCategory == cat ? state.accentColor : .white.opacity(0.3))
-                            .frame(height: 24)
+                            .frame(width: 40, height: 24)
                         
                         // Small dot indicator instead of underline for icons
                         ZStack {
@@ -1124,7 +1126,9 @@ struct IslandView: View {
                         }
                         .frame(width: 4, height: 4)
                     }
+                    .padding(.vertical, 10)
                     .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -1590,30 +1594,27 @@ struct AppIcon: View {
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 8) {
+            VStack(alignment: .center, spacing: 10) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .fill(isSelected ? color.opacity(0.15) : Color.white.opacity(0.05))
-                        .frame(width: 60, height: 60)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                                .stroke(isSelected ? color : Color.white.opacity(0.1), lineWidth: 1.5)
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(isSelected ? color : Color.white.opacity(0.15), lineWidth: 1.5)
                         )
                     
-                    Group {
-                        if let nativeIcon = getIcon(for: appName) {
-                            Image(nsImage: nativeIcon)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 40, height: 40)
-                        } else {
-                            Image(systemName: iconName)
-                                .font(.system(size: 24))
-                                .foregroundColor(color)
-                        }
+                    if let nativeIcon = getIcon(for: appName) {
+                        Image(nsImage: nativeIcon)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 38, height: 38)
+                    } else {
+                        Image(systemName: iconName)
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(color)
                     }
-                    .frame(width: 60, height: 60, alignment: .center)
                 }
+                .frame(width: 60, height: 60)
                 .overlay(alignment: .topTrailing) {
                     if let badge = badge, !badge.isEmpty {
                         Text(badge)
@@ -1623,15 +1624,17 @@ struct AppIcon: View {
                             .padding(.vertical, 2)
                             .background(Color.red)
                             .clipShape(Capsule())
-                            .overlay(Capsule().stroke(Color.black, lineWidth: 1))
-                            .offset(x: 10, y: -10)
+                            .overlay(Capsule().stroke(Color.black.opacity(0.5), lineWidth: 1))
+                            .offset(x: 8, y: -8)
                     }
                 }
                 
                 Text(name)
-                    .font(.system(size: 10, weight: isSelected ? .black : .bold))
-                    .foregroundColor(isSelected ? .white : .white.opacity(0.5))
+                    .font(.system(size: 11, weight: isSelected ? .black : .bold, design: .rounded))
+                    .foregroundColor(isSelected ? .white : .white.opacity(0.6))
+                    .lineLimit(1)
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
