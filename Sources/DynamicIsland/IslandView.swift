@@ -111,7 +111,25 @@ struct IslandView: View {
                     .foregroundColor(.red)
             }
             
-            if state.showClock {
+            // Show Pomodoro timer when focus is active, otherwise show clock
+            if state.isPomodoroRunning {
+                HStack(spacing: 4) {
+                    if let iconPath = Bundle.main.path(forResource: "timer_icon", ofType: "png"),
+                       let nsImage = NSImage(contentsOfFile: iconPath) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .frame(width: 16, height: 16)
+                    } else {
+                        // Fallback: try loading from Resources folder directly
+                        Image(nsImage: NSImage(contentsOfFile: "/Users/agus/Documents/dynamicIsland/Resources/timer_icon.png") ?? NSImage())
+                            .resizable()
+                            .frame(width: 16, height: 16)
+                    }
+                    Text(state.formatPomodoroTime())
+                        .font(.system(size: 12, weight: .black, design: .monospaced))
+                        .foregroundColor(.orange)
+                }
+            } else if state.showClock {
                 Text(Date(), style: .time)
                     .font(.system(size: 12, weight: .black, design: .rounded))
                     .foregroundColor(.white)
@@ -1338,61 +1356,28 @@ struct IslandView: View {
                             .font(.system(size: 14, weight: .bold))
                     }
                     
-                    Spacer()
-                }
-                
-                // Password Section - More Prominent
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("CONTRASEÑA")
-                        .font(.system(size: 8, weight: .black))
-                        .opacity(0.4)
-                    
-                    HStack(spacing: 12) {
-                        if state.wifiPassword != "••••••••" {
-                            // Password revealed - show it prominently
-                            Text(state.wifiPassword)
-                                .font(.system(size: 16, weight: .bold, design: .monospaced))
-                                .foregroundColor(.green)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(Color.green.opacity(0.1))
-                                .cornerRadius(8)
-                            
-                            Button(action: {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(state.wifiPassword, forType: .string)
-                            }) {
-                                Image(systemName: "doc.on.doc.fill")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.blue)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Copiar contraseña")
-                        } else {
-                            // Password hidden
-                            Text("••••••••")
-                                .font(.system(size: 16, weight: .bold, design: .monospaced))
-                                .opacity(0.3)
-                            
-                            if state.wifiSSID != "Desconectado" {
-                                Button(action: {
-                                    state.getWiFiPassword(for: state.wifiSSID)
-                                }) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "eye.fill")
-                                        Text("Ver")
-                                    }
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(.blue)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(Color.blue.opacity(0.1))
-                                    .cornerRadius(8)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
+                    VStack(alignment: .leading) {
+                        Text("VELOCIDAD")
+                            .font(.system(size: 8, weight: .black))
+                            .opacity(0.4)
+                        Text("\(state.wifiSpeed) Mbps")
+                            .font(.system(size: 14, weight: .bold))
                     }
+                    
+                    Spacer()
+                    
+                    // Open WiFi Settings
+                    Button(action: {
+                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.network")!)
+                    }) {
+                        Image(systemName: "gear")
+                            .font(.system(size: 14))
+                            .foregroundColor(.blue)
+                            .padding(8)
+                            .background(Color.blue.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(20)

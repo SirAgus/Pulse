@@ -6,6 +6,19 @@ class MusicObserver {
     
     private var syncTimer: Timer?
     
+    // Helper to check if an app is running
+    private func isAppRunning(_ bundleID: String) -> Bool {
+        return NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == bundleID }
+    }
+    
+    private func isSpotifyRunning() -> Bool {
+        return isAppRunning("com.spotify.client")
+    }
+    
+    private func isMusicRunning() -> Bool {
+        return isAppRunning("com.apple.Music")
+    }
+    
     func start() {
         checkCurrentStatus()
         
@@ -61,8 +74,10 @@ class MusicObserver {
     }
 
     private func fetchArtwork(for appName: String, userInfo: [AnyHashable: Any]? = nil) {
+        // Only fetch if the app is actually running
         if appName == "Spotify" {
-            // Try via AppleScript for directness
+            guard isSpotifyRunning() else { return }
+            
             let script = "tell application \"Spotify\" to artwork url of current track"
             if let urlStr = IslandState.shared.executeAppleScript(script), let url = URL(string: urlStr) {
                 URLSession.shared.dataTask(with: url) { data, _, _ in
@@ -72,6 +87,7 @@ class MusicObserver {
                 }.resume()
             }
         } else if appName == "Music" {
+            guard isMusicRunning() else { return }
             // Apple Music artwork via script is complex (returns data), but let's try a temp file approach or raw hex
             // Since executeAppleScript returns string, getting raw data is hard here.
             // As a fallback for Music, we'll use the app icon which is already handled in View.
@@ -79,6 +95,13 @@ class MusicObserver {
     }
     
     private func updateDurations(for appName: String) {
+        // Only update if the app is actually running
+        if appName == "Spotify" {
+            guard isSpotifyRunning() else { return }
+        } else if appName == "Music" {
+            guard isMusicRunning() else { return }
+        }
+        
         let posScript = "tell application \"\(appName)\" to get player position"
         let durScript = "tell application \"\(appName)\" to get duration of current track"
         
@@ -106,11 +129,7 @@ class MusicObserver {
     }
     
     func checkCurrentStatus() {
-        let apps = NSWorkspace.shared.runningApplications
-        let isSpotifyRunning = apps.contains { $0.bundleIdentifier == "com.spotify.client" }
-        let isMusicRunning = apps.contains { $0.bundleIdentifier == "com.apple.Music" }
-        
-        if isSpotifyRunning {
+        if isSpotifyRunning() {
             let stateStr = IslandState.shared.executeAppleScript("tell application \"Spotify\" to get player state")
             if stateStr == "playing" || stateStr == "kPSP" {
                 updateImmediateState(for: "Spotify")
@@ -118,7 +137,7 @@ class MusicObserver {
             }
         }
         
-        if isMusicRunning {
+        if isMusicRunning() {
             let stateStr = IslandState.shared.executeAppleScript("tell application \"Music\" to get player state")
             if stateStr == "playing" || stateStr == "kPSP" {
                 updateImmediateState(for: "Music")
@@ -128,6 +147,13 @@ class MusicObserver {
     }
     
     private func updateImmediateState(for appName: String) {
+        // Double-check app is running before any AppleScript
+        if appName == "Spotify" {
+            guard isSpotifyRunning() else { return }
+        } else if appName == "Music" {
+            guard isMusicRunning() else { return }
+        }
+        
         let track = IslandState.shared.executeAppleScript("tell application \"\(appName)\" to get name of current track") ?? "Unknown"
         let artist = IslandState.shared.executeAppleScript("tell application \"\(appName)\" to get artist of current track") ?? "Unknown"
         

@@ -173,7 +173,6 @@ class IslandState: ObservableObject {
     // Detailed WiFi
     @Published var wifiSignal: Int = 0
     @Published var wifiSpeed: Int = 0
-    @Published var wifiPassword: String = "••••••••"
     
     // Calendar
     struct CalendarEvent: Identifiable {
@@ -238,25 +237,34 @@ class IslandState: ObservableObject {
             }
         }
         
-        // Timer to refresh status (Headphones, WiFi, etc)
-        Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            self?.refreshHeadphoneStatus()
+        // Timer to refresh status (Headphones, WiFi, etc) - Less frequent to avoid lag
+        Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
             self?.refreshBluetoothDevices()
             self?.refreshWiFiStatus()
         }
         
-        refreshHeadphoneStatus()
-        refreshBluetoothDevices()
-        refreshWiFiStatus()
-        refreshNotes()
-        refreshCalendar()
-        refreshMicStatus()
+        // Initial refresh (delayed to not block startup)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.requestLocationPermission()
+            self?.refreshBluetoothDevices()
+            self?.refreshWiFiStatus()
+            self?.refreshNotes()
+            self?.refreshCalendar()
+            self?.refreshMicStatus()
+        }
         
         // System Performance Monitor
-        Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
             self?.refreshSystemPerformance()
             self?.refreshDiskSpace()
         }
+    }
+    
+    private var locationManager: CLLocationManager?
+    
+    func requestLocationPermission() {
+        locationManager = CLLocationManager()
+        locationManager?.requestWhenInUseAuthorization()
     }
     
     func refreshDiskSpace() {
@@ -290,67 +298,30 @@ class IslandState: ObservableObject {
     }
     
     func refreshWiFiStatus() {
-        var ssid: String? = nil
-        var rssi: Int = 0
-        var rate: Double = 0
-        var interfaceName = "en0"
-        
-        // 1. Try CoreWLAN
+        // Use CoreWLAN only - it's fast and doesn't block
         let client = CWWiFiClient.shared()
         if let interface = client.interface() {
-            ssid = interface.ssid()
-            rssi = interface.rssiValue()
-            rate = interface.transmitRate()
-            if let name = interface.interfaceName {
-                interfaceName = name
-            }
-        }
-        
-        // 2. Fallback to networksetup
-        if ssid == nil {
-            let process = Process()
-            process.launchPath = "/usr/sbin/networksetup"
-            process.arguments = ["-getairportnetwork", interfaceName]
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.launch()
+            let ssid = interface.ssid()
+            let rssi = interface.rssiValue()
+            let rate = interface.transmitRate()
+            let powerOn = interface.powerOn()
             
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
-                if output.starts(with: "Current Wi-Fi Network: ") {
-                     ssid = output.replacingOccurrences(of: "Current Wi-Fi Network: ", with: "")
+            DispatchQueue.main.async {
+                if let ssid = ssid, !ssid.isEmpty {
+                    self.wifiSSID = ssid
+                } else if powerOn {
+                    self.wifiSSID = "WiFi Conectado"
+                } else {
+                    self.wifiSSID = "WiFi Apagado"
                 }
+                self.wifiSignal = rssi
+                self.wifiSpeed = Int(rate)
             }
-        }
-        
-        DispatchQueue.main.async {
-            self.wifiSSID = ssid ?? "Desconectado"
-            self.wifiSignal = rssi
-            self.wifiSpeed = Int(rate)
-        }
-    }
-    
-    // Attempt to get WiFi password using security command (Will trigger system prompt)
-    func getWiFiPassword(for ssid: String) {
-        let process = Process()
-        process.launchPath = "/usr/bin/security"
-        process.arguments = ["find-generic-password", "-D", "AirPort network password", "-a", ssid, "-w"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        
-        DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                try process.run()
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if let password = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !password.isEmpty {
-                     DispatchQueue.main.async {
-                         // We don't store password in state for security, handling in UI or a transient state if needed.
-                         // For now, let's store it in a temporary variable to show it.
-                         self.wifiPassword = password
-                     }
-                }
-            } catch {
-                print("Failed to get password: \(error)")
+        } else {
+            DispatchQueue.main.async {
+                self.wifiSSID = "Sin WiFi"
+                self.wifiSignal = 0
+                self.wifiSpeed = 0
             }
         }
     }
@@ -765,65 +736,95 @@ class IslandState: ObservableObject {
 
     // Fallback to system_profiler if ioreg is empty
     func refreshBluetoothDevices() {
-        let task = Process()
-        task.launchPath = "/usr/sbin/system_profiler"
-        task.arguments = ["SPBluetoothDataType", "-json"]
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        
         DispatchQueue.global(qos: .background).async {
-            do {
-                try task.run()
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let typeData = json["SPBluetoothDataType"] as? [[String: Any]] {
+            var devices: [BluetoothDevice] = []
+            
+            // Use IOBluetooth to get connected devices with battery info
+            if let pairedDevices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] {
+                for device in pairedDevices {
+                    // Only include connected devices
+                    guard device.isConnected() else { continue }
                     
-                    var devices: [BluetoothDevice] = []
+                    let name = device.name ?? "Dispositivo"
                     
-                    // Iterate through controllers
-                    for controller in typeData {
-                        if let connectedDevices = controller["device_title"] as? [[String: Any]] {
-                             for deviceDict in connectedDevices {
-                                 for (name, properties) in deviceDict {
-                                     if let props = properties as? [String: Any] {
-                                         // Check connection status
-                                         let isConnected = (props["device_connected"] as? String == "Yes") || (props["device_connected"] as? String == "true") || (props["device_connected"] as? String == "ATT_CONNECTED")
-                                         if isConnected {
-                                             var batteryLevel: Int? = nil
-                                             
-                                              // Try key extraction for battery
-                                             if let mainBat = props["device_batteryLevelMain"] as? String {
-                                                 batteryLevel = Int(mainBat.replacingOccurrences(of: "%", with: ""))
-                                             } else if let caseBat = props["device_batteryLevelCase"] as? String {
-                                                 batteryLevel = Int(caseBat.replacingOccurrences(of: "%", with: ""))
-                                             } else if let leftBat = props["device_batteryLevelLeft"] as? String {
-                                                  batteryLevel = Int(leftBat.replacingOccurrences(of: "%", with: ""))
-                                             }
-                                             
-                                             devices.append(BluetoothDevice(id: UUID().uuidString, name: name, isConnected: true, batteryPercentage: batteryLevel))
-                                         }
-                                     }
-                                 }
-                             }
-                        }
+                    // Try to get battery from IOBluetooth registry
+                    var batteryLevel: Int? = nil
+                    
+                    // Get battery from the device's service record if available
+                    // This uses a workaround through AppleScript for HFP battery
+                    let batteryScript = """
+                    do shell script "ioreg -r -c IOBluetoothDevice 2>/dev/null | grep -A 30 '\(name)' | grep -i battery | head -1 | sed 's/.*= //' | tr -d '[:space:]'"
+                    """
+                    if let result = self.executeAppleScript(batteryScript),
+                       let level = Int(result) {
+                        batteryLevel = level
                     }
                     
-                    DispatchQueue.main.async {
-                        self.bluetoothDevices = devices
-                        
-                        // Also update legacy headphone vars if needed for other widgets
-                        if let firstHeadphone = devices.first(where: { $0.batteryPercentage != nil }) {
-                            self.headphoneName = firstHeadphone.name
-                            self.headphoneBattery = firstHeadphone.batteryPercentage
-                        } else {
-                            self.headphoneName = nil
-                            self.headphoneBattery = nil
-                        }
-                    }
+                    devices.append(BluetoothDevice(
+                        id: UUID().uuidString,
+                        name: name,
+                        isConnected: true,
+                        batteryPercentage: batteryLevel
+                    ))
                 }
-            } catch {
-                print("Error parsing bluetooth: \(error)")
+            }
+            
+            // If IOBluetooth didn't find devices, fallback to system_profiler
+            if devices.isEmpty {
+                let task = Process()
+                task.launchPath = "/usr/sbin/system_profiler"
+                task.arguments = ["SPBluetoothDataType", "-json"]
+                let pipe = Pipe()
+                task.standardOutput = pipe
+                task.standardError = FileHandle.nullDevice
+                
+                do {
+                    try task.run()
+                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                    
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let typeData = json["SPBluetoothDataType"] as? [[String: Any]] {
+                        
+                        for controller in typeData {
+                            if let connectedDevices = controller["device_connected"] as? [[String: Any]] {
+                                for deviceDict in connectedDevices {
+                                    for (name, properties) in deviceDict {
+                                        var batteryLevel: Int? = nil
+                                        
+                                        if let props = properties as? [String: Any] {
+                                            if let mainBat = props["device_batteryLevelMain"] as? String {
+                                                batteryLevel = Int(mainBat.replacingOccurrences(of: "%", with: ""))
+                                            } else if let caseBat = props["device_batteryLevelCase"] as? String {
+                                                batteryLevel = Int(caseBat.replacingOccurrences(of: "%", with: ""))
+                                            } else if let leftBat = props["device_batteryLevelLeft"] as? String {
+                                                batteryLevel = Int(leftBat.replacingOccurrences(of: "%", with: ""))
+                                            } else if let rightBat = props["device_batteryLevelRight"] as? String {
+                                                batteryLevel = Int(rightBat.replacingOccurrences(of: "%", with: ""))
+                                            }
+                                        }
+                                        
+                                        devices.append(BluetoothDevice(id: UUID().uuidString, name: name, isConnected: true, batteryPercentage: batteryLevel))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch {}
+            }
+            
+            DispatchQueue.main.async {
+                self.bluetoothDevices = devices
+                
+                if let firstHeadphone = devices.first(where: { $0.batteryPercentage != nil }) {
+                    self.headphoneName = firstHeadphone.name
+                    self.headphoneBattery = firstHeadphone.batteryPercentage
+                } else if let first = devices.first {
+                    self.headphoneName = first.name
+                    self.headphoneBattery = nil
+                } else {
+                    self.headphoneName = nil
+                    self.headphoneBattery = nil
+                }
             }
         }
     }
