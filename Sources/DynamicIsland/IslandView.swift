@@ -549,32 +549,34 @@ struct IslandView: View {
             }
             .padding(.horizontal, 24)
             .padding(.top, 20)
-            .padding(.bottom, 12)
+            .padding(.bottom, 8)
             
             // MARK: - Tab Navigation (6 tabs)
             dashboardTabNavigation
                 .padding(.horizontal, 16)
-                .padding(.bottom, 16)
+                .padding(.bottom, 8)
             
-            // MARK: - Content Area
+            // MARK: - Content Area (takes all remaining space)
             dashboardTabContent
-                .frame(maxHeight: .infinity)
-            
-            // MARK: - Ambient Light Effects
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(
+            // MARK: - Ambient Light Effects (as overlay, not taking space)
             ZStack {
                 Circle()
-                    .fill(Color.orange.opacity(0.08))
+                    .fill(Color.orange.opacity(0.06))
                     .frame(width: 150, height: 150)
                     .blur(radius: 60)
                     .offset(x: 120, y: 80)
                 Circle()
-                    .fill(Color.blue.opacity(0.06))
+                    .fill(Color.blue.opacity(0.04))
                     .frame(width: 150, height: 150)
                     .blur(radius: 60)
                     .offset(x: -120, y: -50)
             }
             .allowsHitTesting(false)
-        }
+        )
     }
     
     var batteryIcon: String {
@@ -625,7 +627,7 @@ struct IslandView: View {
     
     @ViewBuilder
     var dashboardTabContent: some View {
-        ScrollView(showsIndicators: false) {
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 16) {
                 switch state.activeCategory {
                 case "apps":
@@ -647,8 +649,10 @@ struct IslandView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 50) // Increased padding to prevent corner clipping
+            .padding(.top, 8)
+            .padding(.bottom, 60)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: state.activeCategory)
         .onAppear {
             // Ensure window becomes key when interacting if it wasn't
@@ -1334,30 +1338,61 @@ struct IslandView: View {
                             .font(.system(size: 14, weight: .bold))
                     }
                     
-                    VStack(alignment: .leading) {
-                        Text("CONTRASEÑA")
-                            .font(.system(size: 8, weight: .black))
-                            .opacity(0.4)
-                        
-                        HStack(spacing: 8) {
+                    Spacer()
+                }
+                
+                // Password Section - More Prominent
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("CONTRASEÑA")
+                        .font(.system(size: 8, weight: .black))
+                        .opacity(0.4)
+                    
+                    HStack(spacing: 12) {
+                        if state.wifiPassword != "••••••••" {
+                            // Password revealed - show it prominently
                             Text(state.wifiPassword)
-                                .font(.system(size: 14, weight: .bold))
-                                .opacity(state.wifiPassword == "••••••••" ? 0.5 : 1.0)
+                                .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                .foregroundColor(.green)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color.green.opacity(0.1))
+                                .cornerRadius(8)
                             
-                            if state.wifiPassword == "••••••••" && state.wifiSSID != "Desconectado" {
+                            Button(action: {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(state.wifiPassword, forType: .string)
+                            }) {
+                                Image(systemName: "doc.on.doc.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.blue)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Copiar contraseña")
+                        } else {
+                            // Password hidden
+                            Text("••••••••")
+                                .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                .opacity(0.3)
+                            
+                            if state.wifiSSID != "Desconectado" {
                                 Button(action: {
                                     state.getWiFiPassword(for: state.wifiSSID)
                                 }) {
-                                    Image(systemName: "eye.fill")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.blue)
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "eye.fill")
+                                        Text("Ver")
+                                    }
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.blue)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.blue.opacity(0.1))
+                                    .cornerRadius(8)
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
                     }
-                    
-                    Spacer()
                 }
             }
             .padding(20)
