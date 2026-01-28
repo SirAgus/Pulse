@@ -590,6 +590,7 @@ struct IslandView: View {
     var dashboardTabNavigation: some View {
         let tabs = [
             ("Apps", "square.grid.2x2", "apps"),
+            ("Connect", "network", "connections"),
             ("Clip", "clipboard", "clipboard"),
             ("Nook", "plus.circle", "widgets"),
             ("Media", "music.note", "media"),
@@ -629,6 +630,8 @@ struct IslandView: View {
                 switch state.activeCategory {
                 case "apps":
                     dashboardAppsView
+                case "connections":
+                    dashboardConnectionsView
                 case "clipboard":
                     dashboardClipboardView
                 case "widgets":
@@ -644,7 +647,7 @@ struct IslandView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 20)
+            .padding(.bottom, 50) // Increased padding to prevent corner clipping
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: state.activeCategory)
         .onAppear {
@@ -738,8 +741,6 @@ struct IslandView: View {
                         switch widgetId {
                         case "photos":
                             photosWidget
-                        case "weather":
-                            weatherFeatureWidget
                         case "performance":
                             performanceBentoWidget
                         case "camera":
@@ -781,36 +782,14 @@ struct IslandView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
     
-    var weatherFeatureWidget: some View {
-        HStack(spacing: 15) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(state.weatherCity.uppercased())
-                    .font(.system(size: 10, weight: .black))
-                    .foregroundColor(.cyan)
-                Text("\(Int(state.currentTemp ?? 0))°")
-                    .font(.system(size: 32, weight: .black))
-            }
-            
-            Spacer()
-            
-            VStack(alignment: .trailing, spacing: 4) {
-                Image(systemName: "cloud.sun.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(.cyan)
-                Text(state.precipitationProb.map { "Lluvia: \($0)%" } ?? "Más detalles")
-                    .font(.system(size: 9, weight: .bold))
-                    .opacity(0.5)
-            }
-        }
-        .padding(20)
-        .background(Color.cyan.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
+    // Weather removed
     
     var performanceBentoWidget: some View {
         HStack(spacing: 12) {
             systemWidget(title: "CPU", value: "\(Int(state.cpuUsage))%", icon: "cpu", color: .green, progress: state.cpuUsage/100)
             systemWidget(title: "RAM", value: "\(Int(state.ramUsage))%", icon: "memorychip", color: .blue, progress: state.ramUsage/100)
+            systemWidget(title: "TEMP", value: "\(Int(state.systemTemp))°C", icon: "thermometer", color: .orange, progress: (state.systemTemp - 30)/70)
+            systemWidget(title: "SSD", value: state.diskFree, icon: "internaldrive.fill", color: .purple, progress: state.diskUsedPercentage)
         }
     }
     
@@ -837,7 +816,6 @@ struct IslandView: View {
             HStack(spacing: 10) {
                 let options = [
 
-                    ("weather", "cloud.sun.fill", Color.cyan),
                     ("performance", "cpu", Color.green),
                     ("photos", "photo", Color.purple),
                     ("camera", "camera.fill", state.accentColor)
@@ -927,14 +905,6 @@ struct IslandView: View {
         VStack(spacing: 12) {
             HStack(spacing: 12) {
                 // Weather Widget
-                widgetCard(
-                    icon: "cloud.sun.fill", 
-                    iconColor: .cyan, 
-                    title: state.weatherCity.uppercased(), 
-                    mainText: "\(Int(state.currentTemp ?? 0))°", 
-                    subText: state.precipitationProb.map { "Lluvia: \($0)%" } ?? "Más detalles"
-                )
-                
                 // Calendar Widget  
                 widgetCard(
                     icon: "calendar", 
@@ -1336,6 +1306,105 @@ struct IslandView: View {
         .padding(.vertical, 20)
     }
     
+    // MARK: - Connections Tab
+    var dashboardConnectionsView: some View {
+        VStack(spacing: 16) {
+            // Wi-Fi Card
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Image(systemName: "wifi")
+                        .font(.system(size: 18))
+                        .foregroundColor(state.wifiSignal > -60 ? .green : (state.wifiSignal > -80 ? .yellow : .red))
+                    Text(state.wifiSSID)
+                        .font(.system(size: 16, weight: .black))
+                    Spacer()
+                    if state.wifiSpeed > 0 {
+                        Text("\(state.wifiSpeed) Mbps")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                }
+                
+                HStack(spacing: 20) {
+                    VStack(alignment: .leading) {
+                        Text("SEÑAL")
+                            .font(.system(size: 8, weight: .black))
+                            .opacity(0.4)
+                        Text("\(state.wifiSignal) dBm")
+                            .font(.system(size: 14, weight: .bold))
+                    }
+                    
+                    VStack(alignment: .leading) {
+                        Text("CONTRASEÑA")
+                            .font(.system(size: 8, weight: .black))
+                            .opacity(0.4)
+                        
+                        HStack(spacing: 8) {
+                            Text(state.wifiPassword)
+                                .font(.system(size: 14, weight: .bold))
+                                .opacity(state.wifiPassword == "••••••••" ? 0.5 : 1.0)
+                            
+                            if state.wifiPassword == "••••••••" && state.wifiSSID != "Desconectado" {
+                                Button(action: {
+                                    state.getWiFiPassword(for: state.wifiSSID)
+                                }) {
+                                    Image(systemName: "eye.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.blue)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    
+                    Spacer()
+                }
+            }
+            .padding(20)
+            .background(Color.blue.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.blue.opacity(0.2), lineWidth: 1))
+            
+            // Bluetooth List
+            VStack(alignment: .leading, spacing: 12) {
+                Text("DISPOSITIVOS BLUETOOTH")
+                    .font(.system(size: 9, weight: .black))
+                    .opacity(0.4)
+                    .padding(.horizontal, 4)
+                
+                if state.bluetoothDevices.isEmpty {
+                    Text("No hay dispositivos conectados")
+                        .font(.system(size: 12, weight: .medium))
+                        .opacity(0.4)
+                        .padding(20)
+                } else {
+                    ForEach(state.bluetoothDevices) { device in
+                        HStack {
+                            Image(systemName: "dot.radiowaves.left.and.right")
+                                .foregroundColor(.blue)
+                            Text(device.name)
+                                .font(.system(size: 12, weight: .bold))
+                            
+                            Spacer()
+                            
+                            if let batt = device.batteryPercentage {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "battery.100")
+                                    Text("\(batt)%")
+                                        .font(.system(size: 10, weight: .bold))
+                                }
+                                .foregroundColor(batt < 20 ? .red : .green)
+                            }
+                        }
+                        .padding(14)
+                        .background(Color.white.opacity(0.04))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+            }
+        }
+    }
+    
     // MARK: - Clipboard Tab
     var dashboardClipboardView: some View {
         VStack(spacing: 16) {
@@ -1454,56 +1523,9 @@ struct IslandView: View {
             .background(Color.white.opacity(0.03))
             .clipShape(RoundedRectangle(cornerRadius: 14))
             
-            settingsRow(icon: "hand.tap.fill", title: "Gestos", value: "Habilitados", color: .blue)
+
             
-            // Weather Location Input
-            VStack(alignment: .leading, spacing: 8) {
-                Text("UBICACIÓN CLIMA")
-                    .font(.system(size: 9, weight: .black))
-                    .opacity(0.4)
-                
-                VStack(alignment: .leading, spacing: 12) {
-                    TextField("Escribe una ciudad y presiona Enter...", text: $state.weatherCity, onCommit: {
-                        state.updateWeatherLocation(cityName: state.weatherCity)
-                        isSearchFocused = false
-                    })
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13, weight: .bold))
-                    .focused($isSearchFocused)
-                    .padding(15)
-                    .background(Color.white.opacity(isSearchFocused ? 0.08 : 0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(isSearchFocused ? state.accentColor : Color.clear, lineWidth: 2)
-                    )
-                    .onTapGesture {
-                        isSearchFocused = true
-                        // Robust window activation
-                        if let window = NSApp.windows.first(where: { $0 is IslandWindow }) {
-                            window.makeKeyAndOrderFront(nil)
-                            NSApp.activate(ignoringOtherApps: true)
-                        }
-                    }
-                    
-                    HStack {
-                        Spacer()
-                        Button(action: { 
-                            state.updateWeatherLocation(cityName: state.weatherCity)
-                            isSearchFocused = false
-                        }) {
-                            Text("BUSCAR UBICACIÓN")
-                                .font(.system(size: 10, weight: .black))
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(state.accentColor)
-                                .foregroundColor(.black)
-                                .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
+            settingsRow(icon: "hand.tap.fill", title: "Gestos", value: "Habilitados", color: .blue)
             
             Button(action: { state.collapse() }) {
                 HStack {
@@ -1779,8 +1801,7 @@ struct IslandView: View {
                         meetingWidget
                     } else if selected == "Clipboard" {
                         clipboardWidget
-                    } else if selected == "Weather" {
-                        weatherWidget
+
                     } else if selected == "Calendar" {
                         calendarWidget
                     } else if selected == "Pomodoro" {
@@ -2494,58 +2515,7 @@ struct IslandView: View {
         }
     }
     
-    var weatherWidget: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("CLIMA ACTUAL")
-                        .font(.system(size: 9, weight: .black)).opacity(0.4)
-                    Text(state.weatherCity.uppercased())
-                        .font(.system(size: 16, weight: .black, design: .rounded))
-                        .foregroundColor(.white)
-                }
-                Spacer()
-                if let temp = state.currentTemp {
-                    Text("\(Int(temp))°")
-                        .font(.system(size: 32, weight: .black, design: .rounded))
-                        .foregroundColor(state.accentColor)
-                } else {
-                    ProgressView().scaleEffect(0.5).opacity(0.3)
-                }
-            }
-            
-            // Search Bar
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.white.opacity(0.3))
-                TextField("Cambiar ubicación...", text: $state.weatherCity, onCommit: {
-                    state.searchLocation(state.weatherCity)
-                })
-                .textFieldStyle(.plain)
-                .font(.system(size: 12, weight: .bold))
-            }
-            .padding(10)
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(12)
-            
-            HStack {
-                Label("\(state.precipitationProb ?? 0)% lluvia", systemImage: "drop.fill")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.blue)
-                Spacer()
-                Text("Despejado")
-                    .font(.system(size: 11, weight: .bold))
-                    .opacity(0.4)
-            }
-            .padding(12)
-            .background(LinearGradient(colors: [Color.white.opacity(0.08), Color.clear], startPoint: .top, endPoint: .bottom))
-            .clipShape(RoundedRectangle(cornerRadius: 15))
-            .overlay(RoundedRectangle(cornerRadius: 15).stroke(Color.white.opacity(0.1), lineWidth: 1))
-        }
-        .padding()
-        .background(Color.black.opacity(0.2))
-        .cornerRadius(25)
-    }
+
     
     var calendarWidget: some View {
         VStack(alignment: .leading, spacing: 15) {
@@ -2862,30 +2832,7 @@ struct MessageRow: View {
 extension Color {
     static let sky = Color(red: 0.35, green: 0.75, blue: 1.0)
     
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch hex.count {
-        case 3: // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6: // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (1, 1, 1, 0)
-        }
 
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue: Double(b) / 255,
-            opacity: Double(a) / 255
-        )
-    }
 }
 
 extension View {

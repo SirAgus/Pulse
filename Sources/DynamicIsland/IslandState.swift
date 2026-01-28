@@ -23,7 +23,7 @@ enum IslandMode {
     case productivity // For Pomodoro/Meeting
 }
 
-enum BackgroundStyle: String, CaseIterable {
+enum BackgroundStyle: String, CaseIterable, Codable {
     case solid = "Sólido"
     case liquidGlass = "Liquid Glass"
     case liquidGlassDark = "Liquid Glass Dark"
@@ -129,18 +129,27 @@ class IslandState: ObservableObject {
     @Published var wifiSSID: String = "Wi-Fi"
     
     // Settings
-    @Published var islandColor: Color = .black
-    @Published var showClock: Bool = true
-    @Published var accentColor: Color = .orange
-    @Published var backgroundStyle: BackgroundStyle = .solid
+    @Published var pinnedWidgets: [String] = ["performance", "media"] { didSet { saveSettings() } }
+    @Published var backgroundStyle: BackgroundStyle = .liquidGlass { didSet { saveSettings() } }
+    @Published var islandColor: Color = .black {
+        didSet { saveSettings() }
+    }
+    @Published var accentColor: Color = .white {
+        didSet { saveSettings() }
+    }
+    @Published var showClock: Bool = true { didSet { saveSettings() } }
+    @Published var showWidgetPicker: Bool = false
     
     // Meeting Mode
     @Published var isMicMuted: Bool = false
     @Published var isDNDActive: Bool = false
     
-    // Customization
-    @Published var pinnedWidgets: [String] = ["weather", "cpu", "ram"]
-    @Published var showWidgetPicker: Bool = false
+    // Persistence Keys
+    private let kBackgroundStyle = "kIslandBackgroundStyle"
+    private let kIslandColor = "kIslandColor"
+    private let kAccentColor = "kAccentColor"
+    private let kPinnedWidgets = "kPinnedWidgets"
+    private let kShowClock = "kShowClock"
     
 
     
@@ -148,18 +157,23 @@ class IslandState: ObservableObject {
     @Published var clipboardHistory: [String] = []
     private var lastChangeCount: Int = 0
     
-    // Weather
-    @Published var currentTemp: Double? = 24.5
-    @Published var precipitationProb: Int? = 5
-    @Published var weatherCity: String = "São Paulo"
-    @Published var lat: Double = -23.55
-    @Published var lon: Double = -46.63
+    // Weather removed
     
     // System Monitor
     @Published var cpuUsage: Double = 0
     @Published var ramUsage: Double = 0
+    @Published var systemTemp: Double = 42.0
     @Published var memoryTotal: Double = 16.0 // GB
     @Published var memoryUsed: Double = 8.0 // GB
+    
+    // SSD Monitor
+    @Published var diskFree: String = "-- GB"
+    @Published var diskUsedPercentage: Double = 0.0
+    
+    // Detailed WiFi
+    @Published var wifiSignal: Int = 0
+    @Published var wifiSpeed: Int = 0
+    @Published var wifiPassword: String = "••••••••"
     
     // Calendar
     struct CalendarEvent: Identifiable {
@@ -185,6 +199,8 @@ class IslandState: ObservableObject {
         self.mode = .compact
         self.isExpanded = false
         
+        loadSettings()
+        
         startMockUpdates()
         refreshVolume()
         
@@ -209,9 +225,8 @@ class IslandState: ObservableObject {
             }
         }
         
-        // Slower timer for Weather and Calendar (every 10 mins)
+        // Slower timer for Calendar (every 10 mins)
         Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { [weak self] _ in
-            self?.refreshWeather()
             self?.refreshCalendar()
         }
         
@@ -234,13 +249,32 @@ class IslandState: ObservableObject {
         refreshBluetoothDevices()
         refreshWiFiStatus()
         refreshNotes()
-        refreshWeather()
         refreshCalendar()
         refreshMicStatus()
         
         // System Performance Monitor
         Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             self?.refreshSystemPerformance()
+            self?.refreshDiskSpace()
+        }
+    }
+    
+    func refreshDiskSpace() {
+        let fileURL = URL(fileURLWithPath: "/")
+        do {
+            let values = try fileURL.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityKey])
+            if let capacity = values.volumeTotalCapacity, let available = values.volumeAvailableCapacity {
+                let totalGB = Double(capacity) / 1_000_000_000
+                let freeGB = Double(available) / 1_000_000_000
+                let usedRatio = (totalGB - freeGB) / totalGB
+                
+                DispatchQueue.main.async {
+                    self.diskFree = String(format: "%.0f GB", freeGB)
+                    self.diskUsedPercentage = usedRatio
+                }
+            }
+        } catch {
+            print("Error reading disk space: \(error)")
         }
     }
     
@@ -251,30 +285,73 @@ class IslandState: ObservableObject {
             self.cpuUsage = (self.cpuUsage * 0.7) + (Double.random(in: 5...45) * 0.3)
             self.memoryUsed = (self.memoryUsed * 0.95) + (Double.random(in: 4...12) * 0.05)
             self.ramUsage = (self.memoryUsed / self.memoryTotal) * 100
+            self.systemTemp = (self.systemTemp * 0.9) + (Double.random(in: 40...75) * 0.1)
         }
     }
     
     func refreshWiFiStatus() {
-        // Try native first
-        if let interface = CWWiFiClient.shared().interface(), let ssid = interface.ssid() {
-            DispatchQueue.main.async { self.wifiSSID = ssid }
-            return
+        var ssid: String? = nil
+        var rssi: Int = 0
+        var rate: Double = 0
+        var interfaceName = "en0"
+        
+        // 1. Try CoreWLAN
+        let client = CWWiFiClient.shared()
+        if let interface = client.interface() {
+            ssid = interface.ssid()
+            rssi = interface.rssiValue()
+            rate = interface.transmitRate()
+            if let name = interface.interfaceName {
+                interfaceName = name
+            }
         }
         
-        // Fallback to shell command
-        let task = Process()
-        task.launchPath = "/usr/sbin/networksetup"
-        task.arguments = ["-getairportnetwork", "en0"] // en0 is standard for WiFi
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.launch()
+        // 2. Fallback to networksetup
+        if ssid == nil {
+            let process = Process()
+            process.launchPath = "/usr/sbin/networksetup"
+            process.arguments = ["-getairportnetwork", interfaceName]
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.launch()
+            
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+                if output.starts(with: "Current Wi-Fi Network: ") {
+                     ssid = output.replacingOccurrences(of: "Current Wi-Fi Network: ", with: "")
+                }
+            }
+        }
         
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        if let output = String(data: data, encoding: .utf8), output.contains("Current Wi-Fi Network:") {
-            let ssid = output.replacingOccurrences(of: "Current Wi-Fi Network: ", with: "").trimmingCharacters(in: .newlines)
-            DispatchQueue.main.async { self.wifiSSID = ssid }
-        } else {
-            DispatchQueue.main.async { self.wifiSSID = "Conectado" }
+        DispatchQueue.main.async {
+            self.wifiSSID = ssid ?? "Desconectado"
+            self.wifiSignal = rssi
+            self.wifiSpeed = Int(rate)
+        }
+    }
+    
+    // Attempt to get WiFi password using security command (Will trigger system prompt)
+    func getWiFiPassword(for ssid: String) {
+        let process = Process()
+        process.launchPath = "/usr/bin/security"
+        process.arguments = ["find-generic-password", "-D", "AirPort network password", "-a", ssid, "-w"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try process.run()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                if let password = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !password.isEmpty {
+                     DispatchQueue.main.async {
+                         // We don't store password in state for security, handling in UI or a transient state if needed.
+                         // For now, let's store it in a temporary variable to show it.
+                         self.wifiPassword = password
+                     }
+                }
+            } catch {
+                print("Failed to get password: \(error)")
+            }
         }
     }
     
@@ -531,41 +608,6 @@ class IslandState: ObservableObject {
     }
 
     // Bluetooth Control (Native)
-    func refreshBluetoothDevices() {
-        guard let pairedDevices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] else { 
-            DispatchQueue.main.async { self.bluetoothDevices = [] }
-            return 
-        }
-        
-        var discovered: [BluetoothDevice] = []
-        for device in pairedDevices {
-            if device.isConnected() {
-                discovered.append(BluetoothDevice(
-                    id: device.addressString,
-                    name: device.nameOrAddress,
-                    isConnected: true,
-                    batteryPercentage: nil
-                ))
-            }
-        }
-        
-        DispatchQueue.main.async {
-            self.bluetoothDevices = discovered
-            
-            // Sync headphoneName if a connected device looks like one
-            // We search for audio-like devices
-            if let firstAudio = discovered.first(where: { 
-                $0.name.lowercased().contains("buds") || 
-                $0.name.lowercased().contains("airpods") || 
-                $0.name.lowercased().contains("headphones") ||
-                $0.name.lowercased().contains("audio") 
-            }) {
-                self.headphoneName = firstAudio.name
-            } else if let first = discovered.first {
-                self.headphoneName = first.name
-            }
-        }
-    }
     
     func disconnectBluetoothDevice(address: String) {
         if let device = IOBluetoothDevice(addressString: address) {
@@ -611,13 +653,12 @@ class IslandState: ObservableObject {
             isExpanded = true
             return
         }
-        if ["Meeting", "Clipboard", "Weather", "Calendar", "Pomodoro"].contains(named) {
+        if ["Meeting", "Clipboard", "Calendar", "Pomodoro"].contains(named) {
             withAnimation(.spring()) {
                 selectedApp = named
                 isExpanded = true // Force expand to show contextual widget
                 // Update active category if needed
                 if ["Meeting", "Clipboard", "Pomodoro", "Calendar"].contains(named) { activeCategory = "Favoritos" }
-                else if named == "Weather" { activeCategory = "Utilidades" }
             }
             return
         }
@@ -720,47 +761,71 @@ class IslandState: ObservableObject {
                 }
             }
         } catch {}
+    }
 
-        // Fallback to system_profiler if ioreg is empty
-        let profiler = Process()
-        profiler.launchPath = "/usr/sbin/system_profiler"
-        profiler.arguments = ["SPBluetoothDataType", "-json"]
-        let pPipe = Pipe()
-        profiler.standardOutput = pPipe
+    // Fallback to system_profiler if ioreg is empty
+    func refreshBluetoothDevices() {
+        let task = Process()
+        task.launchPath = "/usr/sbin/system_profiler"
+        task.arguments = ["SPBluetoothDataType", "-json"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
         
-        profiler.terminationHandler = { [weak self] _ in
-            let data = pPipe.fileHandleForReading.readDataToEndOfFile()
-            guard let self = self,
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let controllers = json["SPBluetoothDataType"] as? [[String: Any]],
-                  let devices = controllers.first?["device_title"] as? [[String: Any]] else {
-                return
-            }
-            
-            for wrapper in devices {
-                guard let deviceName = wrapper.keys.first,
-                      let details = wrapper[deviceName] as? [String: Any],
-                      details["device_connected"] as? String == "ATT_CONNECTED" || details["device_connected"] as? String == "true" else {
-                    continue
-                }
+        DispatchQueue.global(qos: .background).async {
+            do {
+                try task.run()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 
-                if let batteryStr = (details["device_batteryLevelMain"] as? String) ?? (details["device_batteryLevelCase"] as? String),
-                   let level = Int(batteryStr.replacingOccurrences(of: "%", with: "")) {
-                    DispatchQueue.main.async {
-                        self.headphoneName = deviceName
-                        self.headphoneBattery = level
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let typeData = json["SPBluetoothDataType"] as? [[String: Any]] {
+                    
+                    var devices: [BluetoothDevice] = []
+                    
+                    // Iterate through controllers
+                    for controller in typeData {
+                        if let connectedDevices = controller["device_title"] as? [[String: Any]] {
+                             for deviceDict in connectedDevices {
+                                 for (name, properties) in deviceDict {
+                                     if let props = properties as? [String: Any] {
+                                         // Check connection status
+                                         let isConnected = (props["device_connected"] as? String == "Yes") || (props["device_connected"] as? String == "true") || (props["device_connected"] as? String == "ATT_CONNECTED")
+                                         if isConnected {
+                                             var batteryLevel: Int? = nil
+                                             
+                                              // Try key extraction for battery
+                                             if let mainBat = props["device_batteryLevelMain"] as? String {
+                                                 batteryLevel = Int(mainBat.replacingOccurrences(of: "%", with: ""))
+                                             } else if let caseBat = props["device_batteryLevelCase"] as? String {
+                                                 batteryLevel = Int(caseBat.replacingOccurrences(of: "%", with: ""))
+                                             } else if let leftBat = props["device_batteryLevelLeft"] as? String {
+                                                  batteryLevel = Int(leftBat.replacingOccurrences(of: "%", with: ""))
+                                             }
+                                             
+                                             devices.append(BluetoothDevice(id: UUID().uuidString, name: name, isConnected: true, batteryPercentage: batteryLevel))
+                                         }
+                                     }
+                                 }
+                             }
+                        }
                     }
-                    return
+                    
+                    DispatchQueue.main.async {
+                        self.bluetoothDevices = devices
+                        
+                        // Also update legacy headphone vars if needed for other widgets
+                        if let firstHeadphone = devices.first(where: { $0.batteryPercentage != nil }) {
+                            self.headphoneName = firstHeadphone.name
+                            self.headphoneBattery = firstHeadphone.batteryPercentage
+                        } else {
+                            self.headphoneName = nil
+                            self.headphoneBattery = nil
+                        }
+                    }
                 }
-            }
-            
-            DispatchQueue.main.async {
-                self.headphoneName = nil
-                self.headphoneBattery = nil
+            } catch {
+                print("Error parsing bluetooth: \(error)")
             }
         }
-        
-        try? profiler.run()
     }
     
     func launchApp(named: String) {
@@ -768,7 +833,6 @@ class IslandState: ObservableObject {
             switch named {
             case "Wsp": return "WhatsApp"
             case "Chrome": return "Google Chrome"
-            case "Weather": return "Clima"
             case "Calendar": return "Calendario"
             default: return named
             }
@@ -789,7 +853,6 @@ class IslandState: ObservableObject {
             case "Spotify": return "com.spotify.client"
             case "Notes": return "com.apple.Notes"
             case "Calendar": return "com.apple.iCal"
-            case "Weather": return "com.apple.Weather"
             case "Mail": return "com.apple.mail"
             case "Safari": return "com.apple.Safari"
             case "FaceTime": return "com.apple.FaceTime"
@@ -877,70 +940,7 @@ class IslandState: ObservableObject {
         pasteboard.setString(text, forType: .string)
     }
     
-    // MARK: - Weather
-    func searchLocation(_ query: String) {
-        let geocoder = CLGeocoder()
-        geocoder.geocodeAddressString(query) { [weak self] placemarks, error in
-            if let error = error {
-                print("Geocoding error: \(error.localizedDescription)")
-                return
-            }
-            
-            guard let self = self, let placemark = placemarks?.first, let location = placemark.location else { return }
-            
-            DispatchQueue.main.async {
-                self.lat = location.coordinate.latitude
-                self.lon = location.coordinate.longitude
-                self.weatherCity = placemark.locality ?? placemark.name ?? query
-                self.refreshWeather()
-            }
-        }
-    }
-    
-    func refreshWeather() {
-        let urlString = "https://api.open-meteo.com/v1/forecast?latitude=\(lat)&longitude=\(lon)&current=temperature_2m&hourly=precipitation_probability&timezone=auto"
-        guard let url = URL(string: urlString) else { return }
-        
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            guard let data = data else { return }
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let current = json["current"] as? [String: Any],
-               let temp = current["temperature_2m"] as? Double {
-                DispatchQueue.main.async {
-                    self.currentTemp = temp
-                    if let hourly = json["hourly"] as? [String: Any],
-                       let probs = hourly["precipitation_probability"] as? [Int] {
-                        self.precipitationProb = probs.first
-                    }
-                }
-            }
-        }.resume()
-    }
-    
-    func updateWeatherLocation(cityName: String) {
-        let encodedCity = cityName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let urlString = "https://geocoding-api.open-meteo.com/v1/search?name=\(encodedCity)&count=1&language=es&format=json"
-        guard let url = URL(string: urlString) else { return }
-        
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            guard let data = data else { return }
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let results = json["results"] as? [[String: Any]],
-               let first = results.first {
-                
-                let newLat = first["latitude"] as? Double ?? self.lat
-                let newLon = first["longitude"] as? Double ?? self.lon
-                let name = first["name"] as? String ?? cityName
-                
-                DispatchQueue.main.async {
-                    self.lat = newLat
-                    self.lon = newLon
-                    self.weatherCity = name
-                    self.refreshWeather()
-                }
-            }
-        }.resume()
-    }
+    // MARK: - Weather Removed
     
     // MARK: - Calendar
     func refreshCalendar() {
@@ -1000,6 +1000,45 @@ class IslandState: ObservableObject {
             isPomodoroRunning = false
         }
     }
+            // MARK: - Persistence
+    
+    func saveSettings() {
+        UserDefaults.standard.set(backgroundStyle.rawValue, forKey: kBackgroundStyle)
+        UserDefaults.standard.set(pinnedWidgets, forKey: kPinnedWidgets)
+        UserDefaults.standard.set(showClock, forKey: kShowClock)
+        
+        if let islandHex = islandColor.toHex() {
+            UserDefaults.standard.set(islandHex, forKey: kIslandColor)
+        }
+        if let accentHex = accentColor.toHex() {
+            UserDefaults.standard.set(accentHex, forKey: kAccentColor)
+        }
+    }
+    
+    func loadSettings() {
+        if let styleStr = UserDefaults.standard.string(forKey: kBackgroundStyle),
+           let style = BackgroundStyle(rawValue: styleStr) {
+            self.backgroundStyle = style
+        }
+        
+        if let widgets = UserDefaults.standard.array(forKey: kPinnedWidgets) as? [String] {
+            self.pinnedWidgets = widgets
+        }
+        
+        if UserDefaults.standard.object(forKey: kShowClock) != nil {
+            self.showClock = UserDefaults.standard.bool(forKey: kShowClock)
+        }
+        
+        if let islandHex = UserDefaults.standard.string(forKey: kIslandColor) {
+            self.islandColor = Color(hex: islandHex)
+        }
+        
+        if let accentHex = UserDefaults.standard.string(forKey: kAccentColor) {
+            self.accentColor = Color(hex: accentHex)
+        }
+    }
+
+    
     
     func formatPomodoroTime() -> String {
         let mins = Int(pomodoroRemaining) / 60
@@ -1036,14 +1075,14 @@ class IslandState: ObservableObject {
     func heightForMode(_ mode: IslandMode, isExpanded: Bool) -> CGFloat {
         if isExpanded {
             switch mode {
-            case .compact: return 650
+            case .compact: return 800
             case .music: return 280
-            case .battery: return 650
-            case .volume: return 650
-            case .timer: return 650
-            case .notes: return 650
-            case .productivity: return 650
-            default: return 650
+            case .battery: return 800
+            case .volume: return 800
+            case .timer: return 800
+            case .notes: return 800
+            case .productivity: return 800
+            default: return 800
             }
         } else {
             switch mode {
@@ -1061,6 +1100,56 @@ class IslandState: ObservableObject {
             pinnedWidgets.removeAll { $0 == id }
         } else {
             pinnedWidgets.append(id)
+        }
+    }
+}
+
+// MARK: - Color Hex Extensions
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue:  Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+    
+    func toHex() -> String? {
+        // Simple conversion for NSColor backed Colors
+        guard let components = NSColor(self).cgColor.components, components.count >= 3 else {
+            return nil
+        }
+        
+        let r = Float(components[0])
+        let g = Float(components[1])
+        let b = Float(components[2])
+        var a = Float(1.0)
+        
+        if components.count >= 4 {
+            a = Float(components[3])
+        }
+        
+        if a != 1.0 {
+            return String(format: "%02lX%02lX%02lX%02lX", lroundf(a * 255), lroundf(r * 255), lroundf(g * 255), lroundf(b * 255))
+        } else {
+            return String(format: "%02lX%02lX%02lX", lroundf(r * 255), lroundf(g * 255), lroundf(b * 255))
         }
     }
 }
