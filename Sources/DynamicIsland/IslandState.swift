@@ -128,17 +128,19 @@ class IslandState: ObservableObject {
     // Notes
     @Published var notes: [NoteItem] = []
     @Published var editingNoteIndex: Int? = nil
+    @Published var hoveringNoteIndex: Int? = nil
     @Published var isSyncingNotes: Bool = false
     
     // Wi-Fi
     @Published var wifiSSID: String = "Wi-Fi"
     
     // Settings
-    @Published var pinnedWidgets: [String] = ["performance", "media"] { didSet { saveSettings() } }
+    @Published var pinnedWidgets: [String] = ["performance", "alarm", "pomodoro"] { didSet { saveSettings() } }
     @Published var backgroundStyle: BackgroundStyle = .liquidGlass { didSet { saveSettings() } }
     @Published var islandColor: Color = .black {
         didSet { saveSettings() }
     }
+    @Published var showCameraPreview: Bool = false { didSet { saveSettings() } }
     @Published var accentColor: Color = .white {
         didSet { saveSettings() }
     }
@@ -196,6 +198,9 @@ class IslandState: ObservableObject {
     @Published var pomodoroRemaining: TimeInterval = 25 * 60
     @Published var isPomodoroRunning: Bool = false
     @Published var pomodoroCycles: Int = 0
+    @Published var pomodoroLabel: String = ""
+    @Published var workDuration: TimeInterval = 25 * 60
+    @Published var breakDuration: TimeInterval = 5 * 60
     
     private var collapseTimer: Timer?
 
@@ -242,11 +247,19 @@ class IslandState: ObservableObject {
             }
         }
         
-        // Timer to refresh status (Headphones, WiFi, etc) - Less frequent to avoid lag
-        Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
-            self?.refreshBluetoothDevices()
-            self?.refreshWiFiStatus()
-        }
+    // Timer to refresh status (Headphones, WiFi, etc) - Less frequent to avoid lag
+    Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+        self?.refreshBluetoothDevices()
+        self?.refreshWiFiStatus()
+    }
+    
+    // Timer for Alarms (every second check, but careful with efficiency)
+    Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        self?.checkAlarms()
+    }
+    
+    // Load Alarms
+    loadAlarms()
         
         // Initial refresh (delayed to not block startup)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
@@ -379,33 +392,64 @@ class IslandState: ObservableObject {
         }
     }
     
+
+    
     func addNote() {
-        let script = "tell application \"Notes\" to make new note with properties {body:\"Nueva Nota de Dynamic Island\"}"
-        executeAppleScript(script)
-        refreshNotes()
+        // Optimistic Update
+        let tempID = UUID().uuidString
+        let newNote = NoteItem(id: tempID, content: "Nueva Nota de Dynamic Island")
+        notes.insert(newNote, at: 0)
+        
+        // Select it for editing immediately
         setMode(.notes)
         isExpanded = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             self.editingNoteIndex = 0
+        }
+        
+        // Background sync
+        DispatchQueue.global(qos: .userInitiated).async {
+            let script = "tell application \"Notes\" to make new note with properties {body:\"Nueva Nota de Dynamic Island\"}"
+            self.executeAppleScript(script)
+            DispatchQueue.main.async {
+                self.refreshNotes()
+            }
         }
     }
     
     func deleteNote(at index: Int) {
         guard notes.indices.contains(index) else { return }
-        let noteID = notes[index].id
-        let script = "tell application \"Notes\" to delete note id \"\(noteID)\""
-        executeAppleScript(script)
-        refreshNotes()
+        let note = notes[index]
+        
+        // Optimistic Update
+        notes.remove(at: index)
+        if editingNoteIndex == index { editingNoteIndex = nil }
+        
+        // Background sync
+        DispatchQueue.global(qos: .userInitiated).async {
+            let script = "tell application \"Notes\" to delete note id \"\(note.id)\""
+            self.executeAppleScript(script)
+            DispatchQueue.main.async {
+                self.refreshNotes()
+            }
+        }
     }
 
     func saveNote(at index: Int, newContent: String) {
         guard notes.indices.contains(index) else { return }
+        
+        // Optimistic Update is already handled by Binding in UI
         let noteID = notes[index].id
-        // Replace quotes to avoid script errors
         let safeContent = newContent.replacingOccurrences(of: "\"", with: "\\\"")
-        let script = "tell application \"Notes\" to set body of note id \"\(noteID)\" to \"<div>\(safeContent)</div>\""
-        executeAppleScript(script)
-        refreshNotes()
+            .replacingOccurrences(of: "\n", with: "<br>") // Preserve newlines
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            let script = "tell application \"Notes\" to set body of note id \"\(noteID)\" to \"<div>\(safeContent)</div>\""
+            self.executeAppleScript(script)
+            DispatchQueue.main.async {
+                self.refreshNotes()
+            }
+        }
     }
     
     func openNotesApp() {
@@ -414,8 +458,8 @@ class IslandState: ObservableObject {
     }
 
     func showNotification(_ text: String) {
-        // Mock notification for now
-        print(text)
+        let script = "display notification \"\(text)\" with title \"Dynamic Island\" sound name \"Glass\""
+        executeAppleScript(script)
     }
     
     func toggleExpand() {
@@ -578,7 +622,11 @@ class IslandState: ObservableObject {
 
     // MARK: - Pomodoro Customization
     func setPomodoroDuration(_ minutes: Int) {
-        pomodoroMode = .work
+        if pomodoroMode == .work {
+            workDuration = TimeInterval(minutes * 60)
+        } else {
+            breakDuration = TimeInterval(minutes * 60)
+        }
         pomodoroRemaining = TimeInterval(minutes * 60)
         isPomodoroRunning = false
     }
@@ -985,7 +1033,7 @@ class IslandState: ObservableObject {
     
     func resetPomodoro() {
         isPomodoroRunning = false
-        pomodoroRemaining = (pomodoroMode == .work ? 25 : 5) * 60
+        pomodoroRemaining = (pomodoroMode == .work ? workDuration : breakDuration)
         setMode(.compact) // Return to normal header
     }
     
@@ -997,11 +1045,11 @@ class IslandState: ObservableObject {
             if pomodoroMode == .work {
                 pomodoroCycles += 1
                 pomodoroMode = .shortBreak
-                pomodoroRemaining = 5 * 60
+                pomodoroRemaining = breakDuration
                 showNotification("¡Enfoque terminado! Descanso.")
             } else {
                 pomodoroMode = .work
-                pomodoroRemaining = 25 * 60
+                pomodoroRemaining = workDuration
                 showNotification("¡Descanso terminado! A trabajar.")
             }
             isPomodoroRunning = false
@@ -1013,6 +1061,7 @@ class IslandState: ObservableObject {
         UserDefaults.standard.set(backgroundStyle.rawValue, forKey: kBackgroundStyle)
         UserDefaults.standard.set(pinnedWidgets, forKey: kPinnedWidgets)
         UserDefaults.standard.set(showClock, forKey: kShowClock)
+        UserDefaults.standard.set(showCameraPreview, forKey: "kShowCameraPreview")
         
         if let islandHex = islandColor.toHex() {
             UserDefaults.standard.set(islandHex, forKey: kIslandColor)
@@ -1034,6 +1083,10 @@ class IslandState: ObservableObject {
         
         if UserDefaults.standard.object(forKey: kShowClock) != nil {
             self.showClock = UserDefaults.standard.bool(forKey: kShowClock)
+        }
+        
+        if UserDefaults.standard.object(forKey: "kShowCameraPreview") != nil {
+            self.showCameraPreview = UserDefaults.standard.bool(forKey: "kShowCameraPreview")
         }
         
         if let islandHex = UserDefaults.standard.string(forKey: kIslandColor) {
@@ -1109,6 +1162,95 @@ class IslandState: ObservableObject {
             pinnedWidgets.removeAll { $0 == id }
         } else {
             pinnedWidgets.append(id)
+        }
+    }
+
+    // MARK: - Alarm Logic
+    struct Alarm: Identifiable, Codable {
+        var id = UUID()
+        var time: Date
+        var label: String
+        var isEnabled: Bool
+        var repeatDays: Set<Int>
+    }
+
+    @Published var alarms: [Alarm] = [] {
+        didSet { saveAlarms() }
+    }
+    private let kAlarms = "kAlarms"
+
+    func addAlarm(time: Date, label: String, repeatDays: Set<Int>) {
+        let newAlarm = Alarm(time: time, label: label, isEnabled: true, repeatDays: repeatDays)
+        alarms.append(newAlarm)
+        alarms.sort { $0.time < $1.time }
+    }
+
+    func deleteAlarm(id: UUID) {
+        alarms.removeAll { $0.id == id }
+    }
+
+    func toggleAlarm(id: UUID) {
+        if let index = alarms.firstIndex(where: { $0.id == id }) {
+            alarms[index].isEnabled.toggle()
+        }
+    }
+
+    func updateAlarm(id: UUID, time: Date, label: String, repeatDays: Set<Int>) {
+        if let index = alarms.firstIndex(where: { $0.id == id }) {
+            alarms[index].time = time
+            alarms[index].label = label
+            alarms[index].repeatDays = repeatDays
+            alarms.sort { $0.time < $1.time }
+        }
+    }
+
+    func saveAlarms() {
+        if let encoded = try? JSONEncoder().encode(alarms) {
+            UserDefaults.standard.set(encoded, forKey: kAlarms)
+        }
+    }
+
+    func loadAlarms() {
+        if let saved = UserDefaults.standard.data(forKey: kAlarms),
+           let decoded = try? JSONDecoder().decode([Alarm].self, from: saved) {
+            alarms = decoded
+        }
+    }
+
+    func checkAlarms() {
+        let now = Date()
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.hour, .minute, .second, .weekday], from: now)
+        
+        for alarm in alarms where alarm.isEnabled {
+            let alarmComponents = calendar.dateComponents([.hour, .minute], from: alarm.time)
+            
+            // Check matching time (Hour & Minute)
+            if components.hour == alarmComponents.hour &&
+               components.minute == alarmComponents.minute {
+                
+                // Trigger only at 0 seconds (or close to it to avoid missing it)
+                if let sec = components.second, sec == 0 {
+                    // Check Repetition
+                    let currentWeekday = components.weekday! // 1-7
+                    if alarm.repeatDays.isEmpty || alarm.repeatDays.contains(currentWeekday) {
+                        print("🔔 ALARM TRIGGERED: \(alarm.label)")
+                        showNotification("Alarma: \(alarm.label)")
+                        
+                        // Play Sound
+                        NSSound(named: "Glass")?.play()
+                        // Fallback beep
+                        NSSound.beep()
+                        
+                        // If not repeating, disable it
+                        if alarm.repeatDays.isEmpty {
+                            if let index = alarms.firstIndex(where: { $0.id == alarm.id }) {
+                                alarms[index].isEnabled = false
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

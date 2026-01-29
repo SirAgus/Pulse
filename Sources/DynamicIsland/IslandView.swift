@@ -282,6 +282,8 @@ struct IslandView: View {
             }
         }
         .padding(.horizontal, 15)
+        .padding(.bottom, 10)
+        .frame(maxHeight: .infinity, alignment: .bottom)
         .contentShape(Rectangle())
         .onTapGesture {
             if !state.isExpanded {
@@ -470,6 +472,11 @@ struct IslandView: View {
         .padding(.bottom, 20)
     }
 
+    @State private var showWifiTooltip: Bool = false
+    @State private var showSignalTooltip: Bool = false
+    @State private var showSpeedTooltip: Bool = false
+    @FocusState private var isNoteFocused: Bool
+
     var notesEditor: some View {
         Group {
             if let index = state.editingNoteIndex {
@@ -477,6 +484,7 @@ struct IslandView: View {
                     get: { state.notes[safe: index]?.content ?? "" },
                     set: { state.notes[index].content = $0 }
                 ), axis: .vertical)
+                .focused($isNoteFocused)
                 .textFieldStyle(.plain)
                 .font(.system(size: 17, weight: .medium, design: .rounded))
                 .foregroundColor(.white)
@@ -490,6 +498,18 @@ struct IslandView: View {
                 .padding(.horizontal, 22)
                 .padding(.bottom, 25)
                 .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        isNoteFocused = true
+                    }
+                }
+                .onChange(of: state.editingNoteIndex) { newValue in
+                    if newValue != nil {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            isNoteFocused = true
+                        }
+                    }
+                }
             }
         }
     }
@@ -530,12 +550,27 @@ struct IslandView: View {
                             )
                         }
                         .buttonStyle(.plain)
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                state.deleteNote(at: index)
-                            } label: {
-                                Label("Eliminar", systemImage: "trash")
+                        .onHover { isHovering in
+                            if isHovering {
+                                NSCursor.pointingHand.push()
+                            } else {
+                                NSCursor.pop()
                             }
+                        }
+                        .overlay(
+                            Button(action: { state.deleteNote(at: index) }) {
+                                Image(systemName: "trash.circle.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.red)
+                                    .background(Circle().fill(Color.white).padding(2))
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.trailing, 10)
+                            .opacity(state.hoveringNoteIndex == index ? 1 : 0),
+                            alignment: .trailing
+                        )
+                        .onHover { hovering in
+                            state.hoveringNoteIndex = hovering ? index : nil
                         }
                     }
                 }
@@ -603,12 +638,6 @@ struct IslandView: View {
                         .foregroundColor(.blue)
                     Text(state.wifiSSID.isEmpty ? "WiFi" : String(state.wifiSSID.prefix(6)))
                         .font(.system(size: 10, weight: .black))
-                    
-                    // Measurement info tooltip
-                    Image(systemName: "questionmark.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.7))
-                        .help("Velocidad de enlace físico (TX Rate) entre tu Mac y el Router.")
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -813,12 +842,12 @@ struct IslandView: View {
                 VStack(spacing: 20) {
                     ForEach(state.pinnedWidgets, id: \.self) { widgetId in
                         switch widgetId {
-                        case "photos":
-                            photosWidget
                         case "performance":
                             performanceBentoWidget
-                        case "camera":
-                            cameraSmallWidget
+                        case "alarm":
+                            alarmCarouselWidget
+                        case "pomodoro":
+                            pomodoroSquareWidget
                         default:
                             EmptyView()
                         }
@@ -831,30 +860,6 @@ struct IslandView: View {
     
 
     
-    var photosWidget: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.black)
-                    .frame(height: 140)
-                
-                VStack(spacing: 15) {
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 32))
-                        .foregroundStyle(LinearGradient(colors: [.orange, .red, .purple], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    
-                    Text("Aquí se mostrarán las fotos cuando terminen de procesarse.")
-                        .font(.system(size: 11, weight: .bold))
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(.white.opacity(0.6))
-                        .padding(.horizontal, 40)
-                }
-            }
-        }
-        .padding(12)
-        .background(Color.white.opacity(0.03))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
     
     // Weather removed
     
@@ -866,33 +871,191 @@ struct IslandView: View {
             systemWidget(title: "SSD", value: state.diskFree, icon: "internaldrive.fill", color: .purple, progress: state.diskUsedPercentage)
         }
     }
-    
-    var cameraSmallWidget: some View {
-        HStack(spacing: 15) {
-            Circle()
-                .fill(.red)
-                .frame(width: 8, height: 8)
-                .shadow(color: .red, radius: 4)
-            Text("CÁMARA EN VIVO")
-                .font(.system(size: 9, weight: .black))
-            Spacer()
-            Image(systemName: "video.fill")
-                .font(.system(size: 12))
+
+    var alarmCarouselWidget: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "alarm.fill")
+                    .foregroundColor(.orange)
+                Text("ALARMAS")
+                    .font(.system(size: 9, weight: .black))
+                    .opacity(0.4)
+                Spacer()
+                Button(action: { withAnimation { state.activeCategory = "widgets" } }) {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundColor(.orange.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 4)
+
+            if state.alarms.isEmpty {
+                wideCircularWidget(
+                    icon: "alarm",
+                    color: .white.opacity(0.3),
+                    title: "ALARMAS",
+                    value: "Sin alarmas",
+                    subValue: "VACÍO",
+                    action: { withAnimation { state.activeCategory = "widgets" } }
+                )
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(state.alarms) { alarm in
+                            alarmSquareItem(alarm: alarm)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 15)
-        .background(state.accentColor.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 15))
     }
+
+    func alarmSquareItem(alarm: IslandState.Alarm) -> some View {
+        ZStack {
+            Button(action: { state.toggleAlarm(id: alarm.id) }) {
+                VStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .fill(alarm.isEnabled ? Color.orange.opacity(0.2) : Color.white.opacity(0.1))
+                            .frame(width: 36, height: 36)
+                        Image(systemName: alarm.isEnabled ? "alarm.fill" : "alarm")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(alarm.isEnabled ? .orange : .white.opacity(0.4))
+                        
+                    }
+                    
+                    VStack(spacing: 2) {
+                        Text(alarm.time.formatted(date: .omitted, time: .shortened))
+                            .font(.system(size: 14, weight: .black))
+                            .foregroundColor(alarm.isEnabled ? .white : .white.opacity(0.3))
+                        Text(alarm.label.isEmpty ? "Alarma" : alarm.label)
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(alarm.isEnabled ? .orange.opacity(0.8) : .white.opacity(0.2))
+                            .lineLimit(1)
+                    }
+                }
+                .frame(width: 100, height: 110)
+                .background(Color.white.opacity(alarm.isEnabled ? 0.08 : 0.04))
+                .cornerRadius(20)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(alarm.isEnabled ? Color.orange.opacity(0.3) : Color.white.opacity(0.05), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+
+            // Edit & Delete Buttons (Top Right)
+            HStack(spacing: 4) {
+                Button(action: {
+                    newAlarmTime = alarm.time
+                    newAlarmLabel = alarm.label
+                    selectedRepeatDays = alarm.repeatDays
+                    editingAlarmId = alarm.id
+                    withAnimation { 
+                        isAddingAlarm = true 
+                        state.activeCategory = "widgets"
+                    }
+                }) {
+                    Image(systemName: "pencil.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.orange.opacity(0.9))
+                        .background(Color.black.clipShape(Circle()))
+                }
+                .buttonStyle(.plain)
+                
+                Button(action: { state.deleteAlarm(id: alarm.id) }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.red.opacity(0.9))
+                        .background(Color.black.clipShape(Circle()))
+                }
+                .buttonStyle(.plain)
+            }
+            .offset(x: 32, y: -44)
+        }
+    }
+
+    var pomodoroSquareWidget: some View {
+        wideCircularWidget(
+            icon: "timer",
+            color: .red,
+            title: "ENFOQUE POMODORO",
+            value: state.formatPomodoroTime(),
+            subValue: state.isPomodoroRunning ? "TRABAJANDO..." : "DETENIDO",
+            action: {
+                if state.isPomodoroRunning {
+                    state.isPomodoroRunning = false
+                } else {
+                    state.pomodoroRemaining = 25 * 60
+                    state.isPomodoroRunning = true
+                }
+            }
+        )
+    }
+
+    func wideCircularWidget(icon: String, color: Color, title: String, value: String, subValue: String? = nil, action: (() -> Void)? = nil, onDelete: (() -> Void)? = nil) -> some View {
+        Button(action: { action?() }) {
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(color.opacity(0.12))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: icon)
+                        .font(.system(size: 20, weight: .black))
+                        .foregroundColor(color)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 9, weight: .black))
+                        .opacity(0.4)
+                    Text(value)
+                        .font(.system(size: 20, weight: .black))
+                        .foregroundColor(.white)
+                    if let sub = subValue {
+                        Text(sub.uppercased())
+                            .font(.system(size: 8, weight: .black))
+                            .foregroundColor(color.opacity(0.7))
+                            .lineLimit(1)
+                    }
+                }
+                
+                Spacer()
+                
+                if let onDelete = onDelete {
+                    Button(action: { onDelete() }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(.white.opacity(0.2))
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.white.opacity(0.2))
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity)
+            .background(Color.white.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+    
     
     var widgetSelectionPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 let options = [
-
                     ("performance", "cpu", Color.green),
-                    ("photos", "photo", Color.purple),
-                    ("camera", "camera.fill", state.accentColor)
+                    ("alarm", "alarm", Color.orange),
+                    ("pomodoro", "timer", Color.red)
                 ]
                 
                 ForEach(options, id: \.0) { opt in
@@ -998,36 +1161,47 @@ struct IslandView: View {
                     Text("VISTA PREVIA DE CÁMARA")
                         .font(.system(size: 9, weight: .black))
                     Spacer()
+                    
+                    // ON/OFF Button
+                    Button(action: { withAnimation { state.showCameraPreview.toggle() } }) {
+                        Text(state.showCameraPreview ? "ON" : "OFF")
+                            .font(.system(size: 8, weight: .black))
+                            .foregroundColor(state.showCameraPreview ? .green : .white.opacity(0.4))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(4)
+                    }
+                    .buttonStyle(.plain)
+                    
                     Circle()
-                        .fill(.red)
+                        .fill(state.showCameraPreview ? Color.green : Color.red)
                         .frame(width: 6, height: 6)
-                        .shadow(color: .red, radius: 4)
+                        .shadow(color: state.showCameraPreview ? .green : .red, radius: 4)
                 }
                 .padding(.horizontal, 4)
                 
                 ZStack {
-                    CameraPreview()
-                        .frame(height: 140)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                        )
-                    
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Text("Facetime HD Camera")
-                                .font(.system(size: 8, weight: .bold))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.black.opacity(0.5))
-                                .clipShape(Capsule())
-                            Spacer()
-                        }
-                        .padding(8)
+                    if state.showCameraPreview {
+                        CameraPreview()
+                    } else {
+                        Rectangle()
+                            .fill(Color.black)
+                            .overlay(
+                                VStack(spacing: 8) {
+                                    Image(systemName: "video.slash.fill")
+                                        .font(.system(size: 24))
+                                        .opacity(0.3)
+                                    Text("Cámara Apagada")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .opacity(0.4)
+                                }
+                            )
                     }
                 }
+                .frame(height: 140)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.1), lineWidth: 1))
             }
             .padding(12)
             .background(Color.white.opacity(0.03))
@@ -1036,7 +1210,176 @@ struct IslandView: View {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .stroke(Color.white.opacity(0.05), lineWidth: 1)
             )
+            
+            // Alarm Widget
+            alarmWidget
         }
+    }
+
+    // MARK: - Alarm Widget Computed Property
+    @State private var newAlarmTime = Date()
+    @State private var newAlarmLabel = ""
+    @State private var isAddingAlarm = false
+    @State private var selectedRepeatDays: Set<Int> = []
+    @State private var editingAlarmId: UUID? = nil
+    
+    var alarmWidget: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "alarm.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(.orange)
+                Text("ALARMAS")
+                    .font(.system(size: 9, weight: .black))
+                Spacer()
+                
+                Button(action: { withAnimation { isAddingAlarm.toggle() } }) {
+                    Image(systemName: isAddingAlarm ? "xmark.circle.fill" : "plus.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 4)
+            
+            if isAddingAlarm {
+                VStack(spacing: 10) {
+                    HStack {
+                        DatePicker("", selection: $newAlarmTime, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                            .colorScheme(.dark)
+                        
+                        TextField("Etiqueta", text: $newAlarmLabel)
+                            .textFieldStyle(PlainTextFieldStyle())
+                            .padding(6)
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(6)
+                    }
+                    
+                    // Repetition Days
+                    HStack(spacing: 4) {
+                        ForEach(1...7, id: \.self) { day in
+                            let dayName = Calendar.current.shortWeekdaySymbols[day-1].prefix(1)
+                            Text(dayName)
+                                .font(.system(size: 8, weight: .bold))
+                                .frame(width: 20, height: 20)
+                                .background(selectedRepeatDays.contains(day) ? Color.orange : Color.white.opacity(0.1))
+                                .foregroundColor(selectedRepeatDays.contains(day) ? .black : .white)
+                                .clipShape(Circle())
+                                .onTapGesture {
+                                    if selectedRepeatDays.contains(day) {
+                                        selectedRepeatDays.remove(day)
+                                    } else {
+                                        selectedRepeatDays.insert(day)
+                                    }
+                                }
+                        }
+                    }
+                    
+                    Button(action: {
+                        if let editId = editingAlarmId {
+                            state.updateAlarm(id: editId, time: newAlarmTime, label: newAlarmLabel.isEmpty ? "Alarma" : newAlarmLabel, repeatDays: selectedRepeatDays)
+                        } else {
+                            state.addAlarm(time: newAlarmTime, label: newAlarmLabel.isEmpty ? "Alarma" : newAlarmLabel, repeatDays: selectedRepeatDays)
+                        }
+                        
+                        withAnimation {
+                            isAddingAlarm = false
+                            newAlarmLabel = ""
+                            selectedRepeatDays = []
+                            editingAlarmId = nil
+                        }
+                    }) {
+                        Text(editingAlarmId != nil ? "Actualizar Alarma" : "Guardar Alarma")
+                            .font(.system(size: 10, weight: .bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                            .background(Color.orange)
+                            .foregroundColor(.black)
+                            .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(10)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(10)
+            }
+            
+            if state.alarms.isEmpty && !isAddingAlarm {
+                Text("No hay alarmas configuradas")
+                    .font(.system(size: 10))
+                    .foregroundColor(.white.opacity(0.4))
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 10)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(state.alarms) { alarm in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(alarm.time.formatted(date: .omitted, time: .shortened))
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(alarm.isEnabled ? .white : .white.opacity(0.4))
+                                
+                                HStack(spacing: 4) {
+                                    Text(alarm.label)
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.white.opacity(0.6))
+                                    
+                                    if !alarm.repeatDays.isEmpty {
+                                        // Show repeated days nicely
+                                        let daysText = alarm.repeatDays.sorted().map { Calendar.current.shortWeekdaySymbols[$0-1].prefix(1) }.joined(separator: ",")
+                                        Text("• \(daysText)")
+                                            .font(.system(size: 9))
+                                            .foregroundColor(.orange.opacity(0.8))
+                                    }
+                                }
+                            }
+                            
+                            Spacer()
+                            
+                            HStack(spacing: 8) {
+                                Button(action: {
+                                    newAlarmTime = alarm.time
+                                    newAlarmLabel = alarm.label
+                                    selectedRepeatDays = alarm.repeatDays
+                                    editingAlarmId = alarm.id
+                                    withAnimation { 
+                                        isAddingAlarm = true 
+                                    }
+                                }) {
+                                    Image(systemName: "pencil.circle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(.orange.opacity(0.8))
+                                }
+                                .buttonStyle(.plain)
+                                
+                                Toggle("", isOn: Binding(
+                                    get: { alarm.isEnabled },
+                                    set: { _ in state.toggleAlarm(id: alarm.id) }
+                                ))
+                                .toggleStyle(SwitchToggleStyle(tint: .orange))
+                                .labelsHidden()
+                                .scaleEffect(0.7)
+                                
+                                Button(action: { state.deleteAlarm(id: alarm.id) }) {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.red.opacity(0.8))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(10)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(10)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .background(Color.white.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.05), lineWidth: 1))
     }
     
     func widgetCard(icon: String, iconColor: Color, title: String, mainText: String, subText: String) -> some View {
@@ -1281,6 +1624,22 @@ struct IslandView: View {
             
             // Control Buttons
             HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("NOMBRE DE LA SESIÓN")
+                        .font(.system(size: 8, weight: .black))
+                        .foregroundColor(.white.opacity(0.4))
+                    
+                    TextField("Focus...", text: $state.pomodoroLabel)
+                        .textFieldStyle(PlainTextFieldStyle())
+                        .font(.system(size: 14, weight: .bold))
+                        .padding(10)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(12)
+                        .frame(width: 150)
+                }
+                
+                Spacer()
+                
                 Button(action: { 
                     withAnimation { 
                         if state.isPomodoroRunning {
@@ -1290,17 +1649,13 @@ struct IslandView: View {
                         }
                     }
                 }) {
-                    Text(state.isPomodoroRunning ? "PAUSAR FOCO" : "INICIAR FOCO")
+                    Text(state.isPomodoroRunning ? "PAUSAR" : "INICIAR")
                         .font(.system(size: 10, weight: .black))
                         .foregroundColor(state.isPomodoroRunning ? .red : .black)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
                         .background(state.isPomodoroRunning ? Color.red.opacity(0.15) : Color.white)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(state.isPomodoroRunning ? Color.red.opacity(0.5) : Color.clear, lineWidth: 1)
-                        )
                 }
                 .buttonStyle(.plain)
                 
@@ -1311,57 +1666,89 @@ struct IslandView: View {
                         .frame(width: 44, height: 44)
                         .background(Color.white.opacity(0.05))
                         .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.05), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
             }
+            .padding(.horizontal, 20)
             
             // Customizable Time
             if !state.isPomodoroRunning {
-                HStack(spacing: 8) {
-                    ForEach([15, 25, 45, 60], id: \.self) { mins in
-                        Button(action: { state.setPomodoroDuration(mins) }) {
-                            Text("\(mins)m")
-                                .font(.system(size: 10, weight: .bold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                                .background(state.pomodoroRemaining == Double(mins * 60) ? state.accentColor : Color.white.opacity(0.1))
-                                .foregroundColor(state.pomodoroRemaining == Double(mins * 60) ? .black : .white)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                VStack(spacing: 12) {
+                    // Mode Selector for Configuration
+                    HStack(spacing: 8) {
+                        Button(action: { state.pomodoroMode = .work; state.pomodoroRemaining = state.workDuration }) {
+                            Text("TRABAJO")
+                                .font(.system(size: 8, weight: .black))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(state.pomodoroMode == .work ? state.accentColor.opacity(0.2) : Color.white.opacity(0.05))
+                                .foregroundColor(state.pomodoroMode == .work ? state.accentColor : .white.opacity(0.5))
+                                .clipShape(Capsule())
+                                .overlay(Capsule().stroke(state.pomodoroMode == .work ? state.accentColor.opacity(0.5) : Color.clear, lineWidth: 1))
                         }
                         .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 20)
-                
-                // Custom Timer Slider
-                VStack(spacing: 8) {
-                    HStack {
-                        Text("PERSONALIZADO:")
-                            .font(.system(size: 8, weight: .black))
-                            .foregroundColor(.white.opacity(0.4))
+                        
+                        Button(action: { state.pomodoroMode = .shortBreak; state.pomodoroRemaining = state.breakDuration }) {
+                            Text("DESCANSO")
+                                .font(.system(size: 8, weight: .black))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(state.pomodoroMode == .shortBreak ? state.accentColor.opacity(0.2) : Color.white.opacity(0.05))
+                                .foregroundColor(state.pomodoroMode == .shortBreak ? state.accentColor : .white.opacity(0.5))
+                                .clipShape(Capsule())
+                                .overlay(Capsule().stroke(state.pomodoroMode == .shortBreak ? state.accentColor.opacity(0.5) : Color.clear, lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                        
                         Spacer()
-                        Text("\(Int(state.customTimerMinutes)) MINUTOS")
-                            .font(.system(size: 10, weight: .bold))
                     }
                     .padding(.horizontal, 22)
                     
-                    HStack(spacing: 12) {
-                        Slider(value: $state.customTimerMinutes, in: 1...120, step: 1)
-                            .accentColor(state.accentColor)
-                        
-                        Button(action: { state.setPomodoroDuration(Int(state.customTimerMinutes)) }) {
-                            Text("FIJAR")
-                                .font(.system(size: 9, weight: .black))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(state.accentColor.opacity(0.15))
-                                .foregroundColor(state.accentColor)
-                                .clipShape(Capsule())
+                    HStack(spacing: 8) {
+                        ForEach([15, 25, 45, 60], id: \.self) { mins in
+                            Button(action: { state.setPomodoroDuration(mins) }) {
+                                Text("\(mins)m")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .background(state.pomodoroRemaining == Double(mins * 60) ? state.accentColor : Color.white.opacity(0.1))
+                                    .foregroundColor(state.pomodoroRemaining == Double(mins * 60) ? .black : .white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 22)
+                    .padding(.horizontal, 20)
+                    
+                    // Custom Timer Slider
+                    VStack(spacing: 8) {
+                        HStack {
+                            Text("PERSONALIZADO:")
+                                .font(.system(size: 8, weight: .black))
+                                .foregroundColor(.white.opacity(0.4))
+                            Spacer()
+                            Text("\(Int(state.customTimerMinutes)) MINUTOS")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .padding(.horizontal, 22)
+                        
+                        HStack(spacing: 12) {
+                            Slider(value: $state.customTimerMinutes, in: 1...120, step: 1)
+                                .accentColor(state.accentColor)
+                            
+                            Button(action: { state.setPomodoroDuration(Int(state.customTimerMinutes)) }) {
+                                Text("FIJAR")
+                                    .font(.system(size: 9, weight: .black))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(state.accentColor.opacity(0.15))
+                                    .foregroundColor(state.accentColor)
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 20)
+                    }
                 }
             }
             
@@ -1383,95 +1770,205 @@ struct IslandView: View {
     // MARK: - Connections Tab
     var dashboardConnectionsView: some View {
         VStack(spacing: 16) {
-            // Wi-Fi Card
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Image(systemName: "wifi")
-                        .font(.system(size: 18))
-                        .foregroundColor(state.wifiSignal > -60 ? .green : (state.wifiSignal > -80 ? .yellow : .red))
-                    Text(state.wifiSSID)
-                        .font(.system(size: 16, weight: .black))
-                    Spacer()
-                    if state.wifiSpeed > 0 {
-                        Text("\(state.wifiSpeed) Mbps")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.white.opacity(0.6))
-                    }
-                }
-                
-                HStack(spacing: 20) {
-                    VStack(alignment: .leading) {
-                        Text("SEÑAL")
-                            .font(.system(size: 8, weight: .black))
-                            .opacity(0.4)
-                        Text("\(state.wifiSignal) dBm")
-                            .font(.system(size: 14, weight: .bold))
-                    }
-                    
-                    VStack(alignment: .leading) {
-                        Text("VELOCIDAD")
-                            .font(.system(size: 8, weight: .black))
-                            .opacity(0.4)
-                        Text("\(state.wifiSpeed) Mbps")
-                            .font(.system(size: 14, weight: .bold))
-                    }
-                    
-                    Spacer()
-                    
-                    // Open WiFi Settings
-                    Button(action: {
-                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.network")!)
-                    }) {
-                        Image(systemName: "gear")
-                            .font(.system(size: 14))
-                            .foregroundColor(.blue)
-                            .padding(8)
-                            .background(Color.blue.opacity(0.1))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
+            wifiCard
+                .zIndex(1) // Ensure tooltips render ABOVE the bluetooth list
+            bluetoothList
+        }
+    }
+    
+    var wifiCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            wifiHeader
+            wifiStatsRow
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.blue.opacity(0.1))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.blue.opacity(0.2), lineWidth: 1)
+        )
+    }
+
+    var wifiHeader: some View {
+        HStack(alignment: .center) {
+            Image(systemName: "wifi")
+                .font(.system(size: 18))
+                .foregroundColor(state.wifiSignal > -60 ? .green : (state.wifiSignal > -80 ? .yellow : .red))
+            Text(state.wifiSSID)
+                .font(.system(size: 16, weight: .black))
+            
+            wifiTooltipIcon
+            
+            Spacer()
+            if state.wifiSpeed > 0 {
+                Text("\(state.wifiSpeed) Mbps")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.white.opacity(0.6))
+            }
+        }
+    }
+    
+    var wifiTooltipIcon: some View {
+        Image(systemName: "questionmark.circle.fill")
+            .font(.system(size: 12))
+            .foregroundColor(.white.opacity(0.4))
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showWifiTooltip = hovering
                 }
             }
-            .padding(20)
-            .background(Color.blue.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.blue.opacity(0.2), lineWidth: 1))
-            
-            // Bluetooth List
-            VStack(alignment: .leading, spacing: 12) {
-                Text("DISPOSITIVOS BLUETOOTH")
-                    .font(.system(size: 9, weight: .black))
-                    .opacity(0.4)
-                    .padding(.horizontal, 4)
-                
-                if state.bluetoothDevices.isEmpty {
-                    Text("No hay dispositivos conectados")
-                        .font(.system(size: 12, weight: .medium))
-                        .opacity(0.4)
-                        .padding(20)
-                } else {
-                    ForEach(state.bluetoothDevices) { device in
-                        HStack {
-                            Image(systemName: "dot.radiowaves.left.and.right")
-                                .foregroundColor(.blue)
-                            Text(device.name)
-                                .font(.system(size: 12, weight: .bold))
-                            
-                            Spacer()
-                            
-                            if let batt = device.batteryPercentage {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "battery.100")
-                                    Text("\(batt)%")
-                                        .font(.system(size: 10, weight: .bold))
-                                }
-                                .foregroundColor(batt < 20 ? .red : .green)
-                            }
-                        }
-                        .padding(14)
-                        .background(Color.white.opacity(0.04))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                Group {
+                    if showWifiTooltip {
+                        Text("Estos valores se leen directamente del hardware Wi-Fi (CoreWLAN) en tiempo real, sin realizar descargas.\n\n• Velocidad: Tasa de enlace (TX Rate).\n• Señal: Potencia (RSSI).")
+                            .font(.system(size: 10, weight: .medium))
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(nil)
+                            .foregroundColor(.white)
+                            .padding(10)
+                            .background(Color.black)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                            .frame(width: 220)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .offset(x: 0, y: 16) // 1px below icon (approx 15px height + 1px)
+                            .shadow(radius: 10)
                     }
+                },
+                alignment: .topLeading // Align to icon's position
+            )
+            .zIndex(100)
+    }
+
+    var wifiStatsRow: some View {
+        HStack(spacing: 20) {
+            // Signal Stat
+            VStack(alignment: .leading) {
+                Text("SEÑAL")
+                    .font(.system(size: 8, weight: .black))
+                    .opacity(0.4)
+                Text("\(state.wifiSignal) dBm")
+                    .font(.system(size: 14, weight: .bold))
+            }
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showSignalTooltip = hovering
+                }
+            }
+            .overlay(
+                Group {
+                    if showSignalTooltip {
+                        Text("dBm (decibelios-milivatio): mide la potencia de la señal recibida.\n\n• -30 a -60: Excelente\n• -60 a -75: Aceptable\n• -80 o menos: Mala")
+                            .font(.system(size: 10, weight: .medium))
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(nil)
+                            .foregroundColor(.white)
+                            .padding(10)
+                            .background(Color.black)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                            .frame(width: 180)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .offset(x: 0, y: 40)
+                            .shadow(radius: 10)
+                    }
+                },
+                alignment: .topLeading
+            )
+            .zIndex(90)
+            
+            // Speed Stat
+            VStack(alignment: .leading) {
+                Text("VELOCIDAD")
+                    .font(.system(size: 8, weight: .black))
+                    .opacity(0.4)
+                Text("\(state.wifiSpeed) Mbps")
+                    .font(.system(size: 14, weight: .bold))
+            }
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showSpeedTooltip = hovering
+                }
+            }
+            .overlay(
+                Group {
+                    if showSpeedTooltip {
+                        Text("Mbps (Megabits por segundo):\n\nEs la tasa de transferencia teórica (TX Rate) entre tu Mac y el Router, NO la velocidad de Internet.")
+                            .font(.system(size: 10, weight: .medium))
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(nil)
+                            .foregroundColor(.white)
+                            .padding(10)
+                            .background(Color.black)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                            .frame(width: 180)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .offset(x: 0, y: 40)
+                            .shadow(radius: 10)
+                    }
+                },
+                alignment: .topLeading
+            )
+            .zIndex(90)
+            
+            Spacer()
+            
+            // Open WiFi Settings
+            Button(action: {
+                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.network")!)
+            }) {
+                Image(systemName: "gear")
+                    .font(.system(size: 14))
+                    .foregroundColor(.blue)
+                    .padding(8)
+                    .background(Color.blue.opacity(0.1))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    var bluetoothList: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("DISPOSITIVOS BLUETOOTH")
+                .font(.system(size: 9, weight: .black))
+                .opacity(0.4)
+                .padding(.horizontal, 4)
+            
+            if state.bluetoothDevices.isEmpty {
+                Text("No hay dispositivos conectados")
+                    .font(.system(size: 12, weight: .medium))
+                    .opacity(0.4)
+                    .frame(maxWidth: .infinity, alignment: .center) // Force centering
+                    .padding(20)
+            } else {
+                ForEach(state.bluetoothDevices) { device in
+                    HStack {
+                        Image(systemName: "dot.radiowaves.left.and.right")
+                            .foregroundColor(.blue)
+                        Text(device.name)
+                            .font(.system(size: 12, weight: .bold))
+                        
+                        Spacer()
+                        
+                        if let batt = device.batteryPercentage {
+                            HStack(spacing: 4) {
+                                Image(systemName: "battery.100")
+                                Text("\(batt)%")
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                            .foregroundColor(batt < 20 ? .red : .green)
+                        }
+                    }
+                    .padding(14)
+                    .background(Color.white.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
             }
         }
@@ -1902,7 +2399,13 @@ struct IslandView: View {
     var dashboardFooter: some View {
         Group {
             if state.isPlaying || !state.songTitle.isEmpty {
-                Button(action: { state.showMusic() }) {
+                Button(action: { 
+                    withAnimation {
+                        state.activeCategory = "media"
+                        state.mode = .compact
+                        state.isExpanded = true
+                    }
+                }) {
                     HStack(spacing: 15) {
                         footerArtworkView
                         
@@ -2811,6 +3314,8 @@ struct IslandView: View {
         .cornerRadius(22)
     }
 }
+
+// MARK: - App Grid Support
 
 struct AppIcon: View {
     let name: String

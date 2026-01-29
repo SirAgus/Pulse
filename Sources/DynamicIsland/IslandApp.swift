@@ -30,6 +30,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var ignoreNextOutsideClick = false  // Flag to ignore menu clicks
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Critical for receiving keyboard input in a status bar app
+        NSApp.setActivationPolicy(.accessory)
+        
         setupStatusItem()
         setupIslandWindow()
         MusicObserver.shared.start()
@@ -42,19 +45,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func setupClickOutsideMonitor() {
         // Global monitor catches clicks on other apps/desktop
-        NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+        NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 
-                // Skip if we're ignoring clicks (e.g., right after showing from menu)
+                // 1. Skip if we are ignoring clicks manually
                 if self.ignoreNextOutsideClick {
                     print("⏭️ Ignoring outside click (was from menu)")
                     self.ignoreNextOutsideClick = false
                     return
                 }
                 
+                // 2. Geometry Check: Is the click actually inside our window?
+                // Sometimes clicks on non-key windows are reported as global
+                if let window = self.window, window.isVisible {
+                    let clickLocation = NSEvent.mouseLocation // Global screen coordinates
+                    if window.frame.contains(clickLocation) {
+                        print("✋ Click inside window frame detected (Global Monitor) - Ignoring collapse")
+                        return
+                    }
+                }
+                
+                // 3. Collapse if genuinely outside
                 if IslandState.shared.isExpanded {
-                    print("👆 Outside click detected - collapsing")
+                    print("👆 Outside click detected at \(NSEvent.mouseLocation) - collapsing")
                     IslandState.shared.collapse()
                 }
             }
@@ -114,6 +128,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Ensure window is visible - use alphaValue instead of orderOut/orderFront
         print("   → Making window visible")
         window?.alphaValue = 1.0
+        window?.ignoresMouseEvents = false // Restore interactivity
         window?.orderFrontRegardless()
         recenterWindow()
         
@@ -129,14 +144,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         state.collapse()
         // Use alphaValue instead of orderOut to hide - easier to recover
         window?.alphaValue = 0.0
-        print("   - window.alphaValue set to 0")
+        window?.ignoresMouseEvents = true // Let clicks pass through
+        print("   - window.alphaValue set to 0, ignoresMouseEvents = true")
     }
     
     func updateWindowVisibility() {
         if IslandState.shared.isDisabled {
             window?.alphaValue = 0.0
+            window?.ignoresMouseEvents = true
         } else {
             window?.alphaValue = 1.0
+            window?.ignoresMouseEvents = false
             window?.orderFrontRegardless()
             recenterWindow()
         }
@@ -184,6 +202,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.handleStateChange() }
             .store(in: &cancellables)
+            
+        // Force focus when entering edit mode (Notes)
+        IslandState.shared.$editingNoteIndex
+            .receive(on: RunLoop.main)
+            .sink { [weak self] index in
+                if index != nil {
+                    print("📝 Note Editor Entered. Attempting to steal focus...")
+                    self?.handleStateChange()
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        print("   - Activating App (NSRunningApplication force)...")
+                        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+                        
+                        if let window = self?.window {
+                            // Bump level to ensure it captures clicks
+                            window.level = .floating
+                            window.makeKeyAndOrderFront(nil)
+                            window.makeKey()
+                            print("   - Window Level set to .floating")
+                            print("   - Is Key Window Now? \(window.isKeyWindow)")
+                        }
+                    }
+                } else {
+                    // Reset level when leaving edit mode
+                    self?.window?.level = .statusBar
+                }
+            }
+            .store(in: &cancellables)
+            
+        // Log frame for debugging
+        if let window = self.window {
+            print("🪟 Current Window Frame: \(window.frame)")
+        }
             
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             self?.recenterWindow()
