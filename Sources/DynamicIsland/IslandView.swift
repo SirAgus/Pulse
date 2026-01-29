@@ -47,13 +47,15 @@ struct IslandView: View {
                         }
                     }
                 )
-                .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
+                .clipShape(islandMask)
+
             
             // Content Layer
             Group {
                 contentForMode(state.mode)
             }
-            .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
+            .clipShape(islandMask)
+
             
             // Alarms & Alerts Overlays
             if state.isAlarmRinging {
@@ -62,7 +64,7 @@ struct IslandView: View {
                 ringingPomodoroOverlay
             }
         }
-        .padding(.top, state.isExpanded ? 0 : 4) // Slight gap to show top rounding when compact
+        .padding(.top, 0)
         .background(Color.clear)
         .frame(width: state.widthForMode(state.mode, isExpanded: state.isExpanded),
                height: state.heightForMode(state.mode, isExpanded: state.isExpanded))
@@ -238,6 +240,16 @@ struct IslandView: View {
         } else {
             return 22 // Soft rectangle, not full pill
         }
+    }
+
+    private var islandMask: some Shape {
+        UnevenRoundedRectangle(
+            topLeadingRadius: state.hasNotch ? 0 : islandCornerRadius,
+            bottomLeadingRadius: islandCornerRadius,
+            bottomTrailingRadius: islandCornerRadius,
+            topTrailingRadius: state.hasNotch ? 0 : islandCornerRadius,
+            style: .continuous
+        )
     }
 
     var compactMusicContent: some View {
@@ -1442,7 +1454,7 @@ struct IslandView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.opacity(0.96))
-        .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
+        .clipShape(islandMask)
     }
 
     var ringingPomodoroOverlay: some View {
@@ -1477,7 +1489,7 @@ struct IslandView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.opacity(0.96))
-        .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
+        .clipShape(islandMask)
     }
     
     func widgetCard(icon: String, iconColor: Color, title: String, mainText: String, subText: String) -> some View {
@@ -2754,7 +2766,7 @@ struct IslandView: View {
                     .aspectRatio(contentMode: .fill)
                     .blur(radius: 50)
                     .opacity(0.15)
-                    .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
+                    .clipShape(islandMask)
             }
         }
         .contentShape(Rectangle())

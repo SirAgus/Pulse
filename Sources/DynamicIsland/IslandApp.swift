@@ -296,10 +296,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             x = screenFrame.origin.x + (screenFrame.width - width) / 2
             
-            if state.isExpanded {
-                y = visibleFrame.maxY - height
+            if state.hasNotch {
+                if state.isExpanded {
+                    y = visibleFrame.maxY - height
+                } else {
+                    y = screenFrame.maxY - height
+                }
             } else {
-                y = screenFrame.maxY - height
+                // Floating island when no notch
+                y = screenFrame.maxY - height - 10
             }
             print("🏝️ No notch detected, positioning island at top center (\(x), \(y))")
         }
