@@ -74,10 +74,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if IslandState.shared.isExpanded {
                 print("👆 Outside click detected - collapsing")
                 IslandState.shared.collapse()
-            } else if IslandState.shared.mode != .idle {
-                // If already collapsed, hide it (go idle)
-                print("👆 Outside click detected while collapsed - hiding (going idle)")
-                IslandState.shared.setMode(.idle)
             }
         }
     }
