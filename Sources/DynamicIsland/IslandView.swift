@@ -955,6 +955,7 @@ struct IslandView: View {
                     withAnimation { 
                         isAddingAlarm = true 
                         state.activeCategory = "widgets"
+                        state.isExpanded = true
                     }
                 }) {
                     Image(systemName: "pencil.circle.fill")
@@ -1223,86 +1224,160 @@ struct IslandView: View {
     @State private var selectedRepeatDays: Set<Int> = []
     @State private var editingAlarmId: UUID? = nil
     
-    var alarmWidget: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    var alarmWidgetHeader: some View {
+        HStack {
+            Image(systemName: "alarm.fill")
+                .font(.system(size: 12))
+                .foregroundColor(.orange)
+            Text("ALARMAS")
+                .font(.system(size: 9, weight: .black))
+            Spacer()
+            
+            Button(action: { withAnimation { isAddingAlarm.toggle() } }) {
+                Image(systemName: isAddingAlarm ? "xmark.circle.fill" : "plus.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundColor(.white.opacity(0.8))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 4)
+    }
+    
+    var alarmFormView: some View {
+        VStack(spacing: 10) {
             HStack {
-                Image(systemName: "alarm.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(.orange)
-                Text("ALARMAS")
-                    .font(.system(size: 9, weight: .black))
-                Spacer()
+                DatePicker("", selection: $newAlarmTime, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                    .colorScheme(.dark)
                 
-                Button(action: { withAnimation { isAddingAlarm.toggle() } }) {
-                    Image(systemName: isAddingAlarm ? "xmark.circle.fill" : "plus.circle.fill")
+                TextField("Etiqueta", text: $newAlarmLabel)
+                    .textFieldStyle(PlainTextFieldStyle())
+                    .padding(6)
+                    .background(Color.white.opacity(0.1))
+                    .cornerRadius(6)
+            }
+            
+            alarmRepeatDaysSelector
+            alarmSaveButton
+        }
+        .padding(10)
+        .background(Color.white.opacity(0.05))
+        .cornerRadius(10)
+    }
+    
+    var alarmRepeatDaysSelector: some View {
+        HStack(spacing: 4) {
+            ForEach(1...7, id: \.self) { day in
+                let dayName = Calendar.current.shortWeekdaySymbols[day-1].prefix(1)
+                Text(dayName)
+                    .font(.system(size: 8, weight: .bold))
+                    .frame(width: 20, height: 20)
+                    .background(selectedRepeatDays.contains(day) ? Color.orange : Color.white.opacity(0.1))
+                    .foregroundColor(selectedRepeatDays.contains(day) ? .black : .white)
+                    .clipShape(Circle())
+                    .onTapGesture {
+                        if selectedRepeatDays.contains(day) {
+                            selectedRepeatDays.remove(day)
+                        } else {
+                            selectedRepeatDays.insert(day)
+                        }
+                    }
+            }
+        }
+    }
+    
+    var alarmSaveButton: some View {
+        Button(action: {
+            if let editId = editingAlarmId {
+                state.updateAlarm(id: editId, time: newAlarmTime, label: newAlarmLabel.isEmpty ? "Alarma" : newAlarmLabel, repeatDays: selectedRepeatDays)
+            } else {
+                state.addAlarm(time: newAlarmTime, label: newAlarmLabel.isEmpty ? "Alarma" : newAlarmLabel, repeatDays: selectedRepeatDays)
+            }
+            
+            withAnimation {
+                isAddingAlarm = false
+                newAlarmLabel = ""
+                selectedRepeatDays = []
+                editingAlarmId = nil
+            }
+        }) {
+            Text(editingAlarmId != nil ? "Actualizar Alarma" : "Guardar Alarma")
+                .font(.system(size: 10, weight: .bold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .background(Color.orange)
+                .foregroundColor(.black)
+                .cornerRadius(6)
+        }
+        .buttonStyle(.plain)
+    }
+    
+    func alarmListItem(_ alarm: IslandState.Alarm) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(alarm.time.formatted(date: .omitted, time: .shortened))
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(alarm.isEnabled ? .white : .white.opacity(0.4))
+                
+                HStack(spacing: 4) {
+                    Text(alarm.label)
+                        .font(.system(size: 10))
+                        .foregroundColor(.white.opacity(0.6))
+                    
+                    if !alarm.repeatDays.isEmpty {
+                        let daysText = alarm.repeatDays.sorted().map { Calendar.current.shortWeekdaySymbols[$0-1].prefix(1) }.joined(separator: ",")
+                        Text("• \(daysText)")
+                            .font(.system(size: 9))
+                            .foregroundColor(.orange.opacity(0.8))
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 8) {
+                Button(action: {
+                    newAlarmTime = alarm.time
+                    newAlarmLabel = alarm.label
+                    selectedRepeatDays = alarm.repeatDays
+                    editingAlarmId = alarm.id
+                    withAnimation { 
+                        isAddingAlarm = true 
+                    }
+                }) {
+                    Image(systemName: "pencil.circle.fill")
                         .font(.system(size: 16))
-                        .foregroundColor(.white.opacity(0.8))
+                        .foregroundColor(.orange.opacity(0.8))
+                }
+                .buttonStyle(.plain)
+                
+                Toggle("", isOn: Binding(
+                    get: { alarm.isEnabled },
+                    set: { _ in state.toggleAlarm(id: alarm.id) }
+                ))
+                .toggleStyle(SwitchToggleStyle(tint: .orange))
+                .labelsHidden()
+                .scaleEffect(0.7)
+                
+                Button(action: { state.deleteAlarm(id: alarm.id) }) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 14))
+                        .foregroundColor(.red.opacity(0.8))
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 4)
+        }
+        .padding(10)
+        .background(Color.white.opacity(0.05))
+        .cornerRadius(10)
+    }
+    
+    var alarmWidget: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            alarmWidgetHeader
             
             if isAddingAlarm {
-                VStack(spacing: 10) {
-                    HStack {
-                        DatePicker("", selection: $newAlarmTime, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            .colorScheme(.dark)
-                        
-                        TextField("Etiqueta", text: $newAlarmLabel)
-                            .textFieldStyle(PlainTextFieldStyle())
-                            .padding(6)
-                            .background(Color.white.opacity(0.1))
-                            .cornerRadius(6)
-                    }
-                    
-                    // Repetition Days
-                    HStack(spacing: 4) {
-                        ForEach(1...7, id: \.self) { day in
-                            let dayName = Calendar.current.shortWeekdaySymbols[day-1].prefix(1)
-                            Text(dayName)
-                                .font(.system(size: 8, weight: .bold))
-                                .frame(width: 20, height: 20)
-                                .background(selectedRepeatDays.contains(day) ? Color.orange : Color.white.opacity(0.1))
-                                .foregroundColor(selectedRepeatDays.contains(day) ? .black : .white)
-                                .clipShape(Circle())
-                                .onTapGesture {
-                                    if selectedRepeatDays.contains(day) {
-                                        selectedRepeatDays.remove(day)
-                                    } else {
-                                        selectedRepeatDays.insert(day)
-                                    }
-                                }
-                        }
-                    }
-                    
-                    Button(action: {
-                        if let editId = editingAlarmId {
-                            state.updateAlarm(id: editId, time: newAlarmTime, label: newAlarmLabel.isEmpty ? "Alarma" : newAlarmLabel, repeatDays: selectedRepeatDays)
-                        } else {
-                            state.addAlarm(time: newAlarmTime, label: newAlarmLabel.isEmpty ? "Alarma" : newAlarmLabel, repeatDays: selectedRepeatDays)
-                        }
-                        
-                        withAnimation {
-                            isAddingAlarm = false
-                            newAlarmLabel = ""
-                            selectedRepeatDays = []
-                            editingAlarmId = nil
-                        }
-                    }) {
-                        Text(editingAlarmId != nil ? "Actualizar Alarma" : "Guardar Alarma")
-                            .font(.system(size: 10, weight: .bold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
-                            .background(Color.orange)
-                            .foregroundColor(.black)
-                            .cornerRadius(6)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(10)
-                .background(Color.white.opacity(0.05))
-                .cornerRadius(10)
+                alarmFormView
             }
             
             if state.alarms.isEmpty && !isAddingAlarm {
@@ -1313,65 +1388,10 @@ struct IslandView: View {
                     .padding(.vertical, 10)
             } else {
                 VStack(spacing: 8) {
-                    ForEach(state.alarms) { alarm in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(alarm.time.formatted(date: .omitted, time: .shortened))
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(alarm.isEnabled ? .white : .white.opacity(0.4))
-                                
-                                HStack(spacing: 4) {
-                                    Text(alarm.label)
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.white.opacity(0.6))
-                                    
-                                    if !alarm.repeatDays.isEmpty {
-                                        // Show repeated days nicely
-                                        let daysText = alarm.repeatDays.sorted().map { Calendar.current.shortWeekdaySymbols[$0-1].prefix(1) }.joined(separator: ",")
-                                        Text("• \(daysText)")
-                                            .font(.system(size: 9))
-                                            .foregroundColor(.orange.opacity(0.8))
-                                    }
-                                }
-                            }
-                            
-                            Spacer()
-                            
-                            HStack(spacing: 8) {
-                                Button(action: {
-                                    newAlarmTime = alarm.time
-                                    newAlarmLabel = alarm.label
-                                    selectedRepeatDays = alarm.repeatDays
-                                    editingAlarmId = alarm.id
-                                    withAnimation { 
-                                        isAddingAlarm = true 
-                                    }
-                                }) {
-                                    Image(systemName: "pencil.circle.fill")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(.orange.opacity(0.8))
-                                }
-                                .buttonStyle(.plain)
-                                
-                                Toggle("", isOn: Binding(
-                                    get: { alarm.isEnabled },
-                                    set: { _ in state.toggleAlarm(id: alarm.id) }
-                                ))
-                                .toggleStyle(SwitchToggleStyle(tint: .orange))
-                                .labelsHidden()
-                                .scaleEffect(0.7)
-                                
-                                Button(action: { state.deleteAlarm(id: alarm.id) }) {
-                                    Image(systemName: "trash")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.red.opacity(0.8))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(10)
-                        .background(Color.white.opacity(0.05))
-                        .cornerRadius(10)
+                    ForEach(state.alarms.filter { alarm in
+                        editingAlarmId == nil || alarm.id != editingAlarmId
+                    }) { alarm in
+                        alarmListItem(alarm)
                     }
                 }
             }
