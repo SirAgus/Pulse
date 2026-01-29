@@ -59,6 +59,33 @@ xattr -cr /Applications/PULSE.app
 
 ---
 
+## 📸 Capturas de Pantalla
+
+### Vista General
+![Full Demo](Resources/screenshots/full_demo.png)
+
+### Modos Expandidos
+| Música | Productividad (Pomodoro) | Notas |
+| :---: | :---: | :---: |
+| ![Música](Resources/screenshots/music_sound.png) | ![Focus](Resources/screenshots/focus.png) | ![Notas](Resources/screenshots/notes.png) |
+
+### Utilidades y Widgets
+| Sistema | Portapapeles | Cámara y Alarmas |
+| :---: | :---: | :---: |
+| ![Sistema](Resources/screenshots/apps_widgets.png) | ![Portapapeles](Resources/screenshots/clypaste.png) | ![Cámara](Resources/screenshots/camera_and_alarms.png) |
+
+### Personalización
+| Configuración | Estilo Liquid Glass | Widgets Personalizados |
+| :---: | :---: | :---: |
+| ![Configuración](Resources/screenshots/settings.png) | ![Liquid Glass](Resources/screenshots/change_bg.png) | ![Widgets](Resources/screenshots/add_widgets.png) |
+
+### Modos Compactos y Alertas
+| Música Compacta | Alerta de Enfoque | Alerta de Enfoque (Expandida) |
+| :---: | :---: | :---: |
+| ![Música](Resources/screenshots/music_collapsed.png) | ![Focus Collapsed](Resources/screenshots/focus_collapsed.png) | ![Focus Complete](Resources/screenshots/focus_complete.png) |
+
+---
+
 ## 🛠️ Para Desarrolladores
 Si quieres contribuir o compilar el proyecto tú mismo, consulta la [Guía de Lanzamiento](RELEASE_GUIDE.md).
 

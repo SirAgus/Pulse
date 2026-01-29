@@ -59,9 +59,17 @@ struct IslandView: View {
             
             // Alarms & Alerts Overlays
             if state.isAlarmRinging {
-                ringingAlarmOverlay
+                if state.isExpanded {
+                    ringingAlarmOverlay
+                } else {
+                    compactRingingAlarmOverlay
+                }
             } else if state.isPomodoroRinging {
-                ringingPomodoroOverlay
+                if state.isExpanded {
+                    ringingPomodoroOverlay
+                } else {
+                    compactRingingPomodoroOverlay
+                }
             }
         }
         .padding(.top, 0)
@@ -1453,48 +1461,68 @@ struct IslandView: View {
     }
 
     var ringingAlarmOverlay: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "alarm.fill")
-                .font(.system(size: 44, weight: .bold))
-                .foregroundColor(state.accentColor)
-                .symbolEffect(.bounce, options: .repeating)
+        VStack(spacing: 20) {
+            // Gap for notch
+            Spacer().frame(height: state.hasNotch ? state.notchHeight + 20 : 40)
             
-            VStack(spacing: 4) {
+            if #available(macOS 15.0, *) {
+                Image(systemName: "alarm.fill")
+                    .font(.system(size: 44, weight: .bold))
+                    .foregroundColor(.orange)
+                    .symbolEffect(.bounce, options: .repeating)
+            } else {
+                Image(systemName: "alarm.fill")
+                    .font(.system(size: 44, weight: .bold))
+                    .foregroundColor(.orange)
+            }
+            
+            VStack(spacing: 8) {
                 Text("ALARMA")
                     .font(.system(size: 10, weight: .black))
-                    .foregroundColor(state.accentColor.opacity(0.8))
+                    .foregroundColor(.orange.opacity(0.8))
                 Text(state.activeAlarmLabel)
                     .font(.system(size: 24, weight: .black, design: .rounded))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
+            
+            Spacer()
             
             Button(action: { state.stopAlarm() }) {
                 Text("DETENER")
                     .font(.system(size: 14, weight: .black))
                     .foregroundColor(.black)
-                    .padding(.horizontal, 34)
+                    .padding(.horizontal, 40)
                     .padding(.vertical, 14)
-                    .background(state.accentColor)
+                    .background(Color.orange)
                     .cornerRadius(22)
             }
             .buttonStyle(.plain)
-            .padding(.top, 10)
+            .padding(.bottom, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.opacity(0.96))
+        .background(Color.black)
         .clipShape(islandMask)
     }
 
     var ringingPomodoroOverlay: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "timer")
-                .font(.system(size: 44, weight: .bold))
-                .foregroundColor(state.accentColor)
-                .symbolEffect(.bounce, options: .repeating)
+        VStack(spacing: 20) {
+            // Gap for notch
+            Spacer().frame(height: state.hasNotch ? state.notchHeight + 20 : 40)
             
-            VStack(spacing: 4) {
+            if #available(macOS 15.0, *) {
+                Image(systemName: "timer")
+                    .font(.system(size: 44, weight: .bold))
+                    .foregroundColor(state.accentColor)
+                    .symbolEffect(.bounce, options: .repeating)
+            } else {
+                Image(systemName: "timer")
+                    .font(.system(size: 44, weight: .bold))
+                    .foregroundColor(state.accentColor)
+            }
+            
+            VStack(spacing: 8) {
                 Text(state.pomodoroMode == .work ? "DESCANSO TERMINADO" : "ENFOQUE TERMINADO")
                     .font(.system(size: 10, weight: .black))
                     .foregroundColor(state.accentColor.opacity(0.8))
@@ -1503,23 +1531,137 @@ struct IslandView: View {
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
+            
+            Spacer()
             
             Button(action: { state.stopPomodoroAlarm() }) {
                 Text("LISTO")
                     .font(.system(size: 14, weight: .black))
                     .foregroundColor(.black)
-                    .padding(.horizontal, 34)
+                    .padding(.horizontal, 40)
                     .padding(.vertical, 14)
                     .background(state.accentColor)
                     .cornerRadius(22)
             }
             .buttonStyle(.plain)
-            .padding(.top, 10)
+            .padding(.bottom, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.opacity(0.96))
+        .background(Color.black)
         .clipShape(islandMask)
+    }
+
+    var compactRingingAlarmOverlay: some View {
+        ZStack {
+            // Central content - Lowered to be below notch
+            HStack(spacing: 8) {
+                if #available(macOS 15.0, *) {
+                    Image(systemName: "alarm.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.orange)
+                        .symbolEffect(.bounce, options: .repeating)
+                } else {
+                    Image(systemName: "alarm.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.orange)
+                }
+                
+                Text(state.activeAlarmLabel.isEmpty ? "ALARMA" : state.activeAlarmLabel)
+                    .font(.system(size: 11, weight: .black))
+                    .foregroundColor(.white)
+            }
+            .frame(height: 36)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            
+            // Left: Stop button - Lowered
+            HStack {
+                Button(action: { state.stopAlarm() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.3))
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 36)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            
+            // Right: Expand hint - Lowered
+            HStack {
+                Spacer()
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white.opacity(0.2))
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 36)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
+        .clipShape(islandMask)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            state.expand()
+        }
+    }
+
+    var compactRingingPomodoroOverlay: some View {
+        ZStack {
+            // Central content - Lowered to be below notch
+            HStack(spacing: 8) {
+                if #available(macOS 15.0, *) {
+                    Image(systemName: "timer")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(state.accentColor)
+                        .symbolEffect(.bounce, options: .repeating)
+                } else {
+                    Image(systemName: "timer")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(state.accentColor)
+                }
+                
+                Text(state.pomodoroMode == .work ? "DESCANSO LISTO" : "ENFOQUE LISTO")
+                    .font(.system(size: 11, weight: .black))
+                    .foregroundColor(.white)
+            }
+            .frame(height: 36)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            
+            // Left: Stop button - Lowered
+            HStack {
+                Button(action: { state.stopPomodoroAlarm() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.3))
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 36)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            
+            // Right: Expand hint - Lowered
+            HStack {
+                Spacer()
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white.opacity(0.2))
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 36)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
+        .clipShape(islandMask)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            state.expand()
+        }
     }
     
     func widgetCard(icon: String, iconColor: Color, title: String, mainText: String, subText: String) -> some View {

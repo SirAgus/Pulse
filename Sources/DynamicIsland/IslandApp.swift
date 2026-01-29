@@ -68,8 +68,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 
                 // 3. Collapse if genuinely outside
                 if IslandState.shared.isExpanded {
-                    print("👆 Outside click detected at \(NSEvent.mouseLocation) - collapsing")
+                    print("👆 Outside click detected - collapsing")
                     IslandState.shared.collapse()
+                } else if IslandState.shared.mode != .idle {
+                    print("👆 Outside click detected while collapsed - hiding (going idle)")
+                    IslandState.shared.setMode(.idle)
                 }
             }
         }
