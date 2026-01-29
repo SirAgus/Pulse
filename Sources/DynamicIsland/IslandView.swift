@@ -21,7 +21,7 @@ struct IslandView: View {
     var body: some View {
         ZStack {
             // Main Island Background with Tap Gesture
-            RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
+            Rectangle()
                 .fill((state.backgroundStyle == .solid || !state.isExpanded) && state.mode != .idle ? state.islandColor.opacity(0.98) : Color.black.opacity(0.1))
                 .onTapGesture {
                     if !state.isExpanded {
@@ -33,16 +33,15 @@ struct IslandView: View {
                     ZStack {
                         if state.backgroundStyle == .liquidGlass {
                             VisualEffectView(material: .headerView, blendingMode: .behindWindow)
-                                .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
+                                .background(Color.black.opacity(0.4)) // Darker base for liquid glass
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
+                                    Rectangle()
                                         .stroke(Color.white.opacity(0.1), lineWidth: 1)
                                 )
                         } else if state.backgroundStyle == .liquidGlassDark {
                             VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
-                                .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
+                                    Rectangle()
                                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                                 )
                         }
@@ -56,6 +55,7 @@ struct IslandView: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
         }
+        .padding(.top, state.isExpanded ? 0 : 4) // Slight gap to show top rounding when compact
         .background(Color.clear)
         .frame(width: state.widthForMode(state.mode, isExpanded: state.isExpanded),
                height: state.heightForMode(state.mode, isExpanded: state.isExpanded))
@@ -83,7 +83,7 @@ struct IslandView: View {
                 if state.isExpanded {
                     expandedDashboardContent
                 } else {
-                    compactProductivityContent
+                    compactContent
                 }
             case .music:
                 if state.isExpanded {
@@ -95,13 +95,13 @@ struct IslandView: View {
                 if state.isExpanded {
                     expandedTimerContent
                 } else {
-                    compactTimerContent
+                    compactContent
                 }
             case .notes:
                 if state.isExpanded {
                     expandedNotesContent
                 } else {
-                    compactNotesContent
+                    compactContent
                 }
             case .battery:
                 batteryContent
@@ -116,49 +116,59 @@ struct IslandView: View {
     
     var compactContent: some View {
         HStack {
-            // Left: Logo
-            if let icon = timerIcon {
-                Image(nsImage: icon)
-                    .resizable()
-                    .frame(width: 18, height: 18)
-            } else {
-                Image(systemName: "hand.tap.fill")
-                    .font(.system(size: 14))
-                    .foregroundColor(state.accentColor)
+            // Left: Status dots or Mode Icon
+            HStack(spacing: 6) {
+                if state.mode == .productivity || state.isPomodoroRunning {
+                    // Focus/Timer Mode: Icon + Countdown
+                    Image(systemName: "timer")
+                        .font(.system(size: 12))
+                        .foregroundColor(.orange)
+                    
+                    if state.isPomodoroRunning {
+                        Text(state.formatPomodoroTime())
+                            .font(.system(size: 12, weight: .black, design: .monospaced))
+                            .foregroundColor(.orange)
+                            .fixedSize()
+                    }
+                } else {
+                    // Normal Mode: Status Dot
+                    Circle()
+                        .fill(state.isMicMuted ? Color.red : state.accentColor.opacity(0.5))
+                        .frame(width: 6, height: 6)
+                }
             }
+            .frame(width: state.mode == .productivity || state.isPomodoroRunning ? 70 : 30, alignment: .leading)
+            .padding(.leading, 15)
             
             Spacer()
             
-            // Center: Date & Time in a clean stack
+            // Center: Date & Time
             VStack(spacing: 0) {
-                Text(state.isPomodoroRunning ? state.formatPomodoroTime() : formattedTime)
+                Text(formattedTime)
                     .font(.system(size: 13, weight: .black, design: .monospaced))
-                    .foregroundColor(state.isPomodoroRunning ? .orange : .white)
+                    .foregroundColor(.white)
                 
-                Text(formattedShortDate)
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.6))
+                // Only show date if timer is NOT running/visible (to save space)
+                if !(state.mode == .productivity || state.isPomodoroRunning) {
+                    Text(formattedShortDate)
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .foregroundColor(.white.opacity(0.6))
+                }
             }
             
             Spacer()
             
             // Right: Status info
             HStack(spacing: 8) {
-                if state.isMicMuted {
-                    Image(systemName: "mic.slash.fill")
-                        .font(.system(size: 10))
-                        .foregroundColor(.red)
-                }
-                
                 Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.100")
                     .font(.system(size: 14))
                     .foregroundColor(state.batteryLevel < 20 ? .red : .green)
             }
-            .frame(width: 40)
+            .frame(width: 30, alignment: .trailing)
+            .padding(.trailing, 15)
         }
-        .padding(.horizontal, 15)
-        .padding(.top, state.hasNotch ? state.notchHeight : 5) // Clear the physical notch
-        .frame(maxHeight: .infinity)
+        .padding(.bottom, 6) // Closer to bottom edge
+        .frame(maxHeight: .infinity, alignment: .bottom)
         .contentShape(Rectangle())
         .onTapGesture {
             state.toggleExpand()
@@ -218,7 +228,7 @@ struct IslandView: View {
         if state.isExpanded {
             return state.mode == .music ? 40 : 48
         } else {
-            return 20
+            return 22 // Soft rectangle, not full pill
         }
     }
 
@@ -463,14 +473,15 @@ struct IslandView: View {
     var notesEditor: some View {
         Group {
             if let index = state.editingNoteIndex {
-                TextEditor(text: Binding(
+                TextField("Escribe tu nota aquí...", text: Binding(
                     get: { state.notes[safe: index]?.content ?? "" },
                     set: { state.notes[index].content = $0 }
-                ))
+                ), axis: .vertical)
+                .textFieldStyle(.plain)
                 .font(.system(size: 17, weight: .medium, design: .rounded))
                 .foregroundColor(.white)
-                .scrollContentBackground(.hidden)
                 .padding(25)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .background(
                     RoundedRectangle(cornerRadius: 30, style: .continuous)
                         .fill(Color.white.opacity(0.04))
@@ -545,6 +556,8 @@ struct IslandView: View {
                 notesListView
             }
         }
+        .padding(.top, state.hasNotch ? state.notchHeight : 10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     var expandedDashboardContent: some View {
@@ -590,6 +603,12 @@ struct IslandView: View {
                         .foregroundColor(.blue)
                     Text(state.wifiSSID.isEmpty ? "WiFi" : String(state.wifiSSID.prefix(6)))
                         .font(.system(size: 10, weight: .black))
+                    
+                    // Measurement info tooltip
+                    Image(systemName: "questionmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.7))
+                        .help("Velocidad de enlace físico (TX Rate) entre tu Mac y el Router.")
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -610,6 +629,7 @@ struct IslandView: View {
             dashboardTabContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .padding(.top, state.hasNotch ? state.notchHeight : 10) // Clear the notch
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(
             // MARK: - Ambient Light Effects (as overlay, not taking space)
@@ -1577,7 +1597,6 @@ struct IslandView: View {
             
 
             
-            settingsRow(icon: "hand.tap.fill", title: "Gestos", value: "Habilitados", color: .blue)
             
             Button(action: { state.collapse() }) {
                 HStack {
@@ -3021,4 +3040,51 @@ struct MusicWaveform: View {
             }
         }
     }
+}
+
+struct RoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = NSBezierPath()
+        
+        let topLeft = corners.contains(.topLeft) ? radius : 0
+        let topRight = corners.contains(.topRight) ? radius : 0
+        let bottomLeft = corners.contains(.bottomLeft) ? radius : 0
+        let bottomRight = corners.contains(.bottomRight) ? radius : 0
+
+        path.move(to: CGPoint(x: rect.minX + topLeft, y: rect.maxY))
+        path.line(to: CGPoint(x: rect.maxX - topRight, y: rect.maxY))
+        if topRight > 0 {
+            path.appendArc(withCenter: CGPoint(x: rect.maxX - topRight, y: rect.maxY - topRight), radius: topRight, startAngle: 90, endAngle: 0, clockwise: true)
+        }
+        
+        path.line(to: CGPoint(x: rect.maxX, y: rect.minY + bottomRight))
+        if bottomRight > 0 {
+            path.appendArc(withCenter: CGPoint(x: rect.maxX - bottomRight, y: rect.minY + bottomRight), radius: bottomRight, startAngle: 0, endAngle: 270, clockwise: true)
+        }
+        
+        path.line(to: CGPoint(x: rect.minX + bottomLeft, y: rect.minY))
+        if bottomLeft > 0 {
+            path.appendArc(withCenter: CGPoint(x: rect.minX + bottomLeft, y: rect.minY + bottomLeft), radius: bottomLeft, startAngle: 270, endAngle: 180, clockwise: true)
+        }
+        
+        path.line(to: CGPoint(x: rect.minX, y: rect.maxY - topLeft))
+        if topLeft > 0 {
+            path.appendArc(withCenter: CGPoint(x: rect.minX + topLeft, y: rect.maxY - topLeft), radius: topLeft, startAngle: 180, endAngle: 90, clockwise: true)
+        }
+        
+        path.close()
+        return Path(path.cgPath)
+    }
+}
+
+struct UIRectCorner: OptionSet {
+    let rawValue: Int
+    static let topLeft = UIRectCorner(rawValue: 1 << 0)
+    static let topRight = UIRectCorner(rawValue: 1 << 1)
+    static let bottomLeft = UIRectCorner(rawValue: 1 << 2)
+    static let bottomRight = UIRectCorner(rawValue: 1 << 3)
+    static let allCorners: UIRectCorner = [.topLeft, .topRight, .bottomLeft, .bottomRight]
 }

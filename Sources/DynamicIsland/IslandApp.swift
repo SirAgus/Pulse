@@ -65,7 +65,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "hand.tap.fill", accessibilityDescription: "Island Control")
+            // Minimalist dot for the menu bar
+            button.image = NSImage(systemSymbolName: "circle.fill", accessibilityDescription: "PULSE")
+            button.image?.isTemplate = true // Ensures it follows system light/dark mode
             button.action = #selector(statusItemClicked)
             button.target = self
         }
@@ -156,7 +158,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         
-        window.level = .floating
+        window.level = .statusBar
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.backgroundColor = NSColor.clear
         window.isOpaque = false
@@ -227,10 +229,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             x = notchRect.midX - (width / 2)
             
             if state.isExpanded {
-                // When expanded, position just below the notch
-                y = notchRect.minY - height
+                // Expanded: Stick to absolute top
+                let screenFrame = targetScreen.frame
+                y = screenFrame.maxY - height
             } else {
-                // Stick to the absolute top of the screen
+                // Compact: Stick to absolute top
                 let screenFrame = targetScreen.frame
                 y = screenFrame.maxY - height
             }

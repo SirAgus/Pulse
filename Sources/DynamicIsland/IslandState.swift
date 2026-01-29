@@ -986,6 +986,7 @@ class IslandState: ObservableObject {
     func resetPomodoro() {
         isPomodoroRunning = false
         pomodoroRemaining = (pomodoroMode == .work ? 25 : 5) * 60
+        setMode(.compact) // Return to normal header
     }
     
     private func updatePomodoro() {
@@ -1060,7 +1061,7 @@ class IslandState: ObservableObject {
             case .compact: return 500
             case .music: return 450
             case .timer: return 350
-            case .notes: return 400
+            case .notes: return 500 // Match dashboard width
             case .productivity: return 500
             default: return 320
             }
@@ -1079,8 +1080,8 @@ class IslandState: ObservableObject {
             case .music: return baseWidth + 40
             case .battery: return 120
             case .volume: return 120
-            case .timer: return 180
-            case .notes: return 160
+            case .timer: return baseWidth // Standard width
+            case .notes: return baseWidth // Standard width (was 160)
             case .productivity: return baseWidth
             }
         }
@@ -1089,18 +1090,18 @@ class IslandState: ObservableObject {
     func heightForMode(_ mode: IslandMode, isExpanded: Bool) -> CGFloat {
         if isExpanded {
             switch mode {
-            case .compact: return 800
+            case .compact: return 520
             case .music: return 280
-            case .battery: return 800
-            case .volume: return 800
-            case .timer: return 800
-            case .notes: return 800
-            case .productivity: return 800
-            default: return 800
+            case .battery: return 200
+            case .volume: return 200
+            case .timer: return 520
+            case .notes: return 520
+            case .productivity: return 520
+            default: return 520
             }
         } else {
-            // Height covers the notch AND the space below it (notchHeight + ~37px)
-            return hasNotch ? notchHeight + 37 : 45
+            // Minimized height to hug text (notch + 36)
+            return hasNotch ? notchHeight + 36 : 45
         }
     }
     func toggleWidget(_ id: String) {
