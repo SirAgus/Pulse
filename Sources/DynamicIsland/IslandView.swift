@@ -54,6 +54,13 @@ struct IslandView: View {
                 contentForMode(state.mode)
             }
             .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
+            
+            // Alarms & Alerts Overlays
+            if state.isAlarmRinging {
+                ringingAlarmOverlay
+            } else if state.isPomodoroRinging {
+                ringingPomodoroOverlay
+            }
         }
         .padding(.top, state.isExpanded ? 0 : 4) // Slight gap to show top rounding when compact
         .background(Color.clear)
@@ -143,10 +150,11 @@ struct IslandView: View {
             Spacer()
             
             // Center: Date & Time
-            VStack(spacing: 0) {
+            VStack(spacing: -3) {
                 Text(formattedTime)
                     .font(.system(size: 13, weight: .black, design: .monospaced))
                     .foregroundColor(.white)
+                    .fixedSize()
                 
                 // Only show date if timer is NOT running/visible (to save space)
                 if !(state.mode == .productivity || state.isPomodoroRunning) {
@@ -1400,6 +1408,76 @@ struct IslandView: View {
         .background(Color.white.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.05), lineWidth: 1))
+    }
+
+    var ringingAlarmOverlay: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "alarm.fill")
+                .font(.system(size: 44, weight: .bold))
+                .foregroundColor(state.accentColor)
+                .symbolEffect(.bounce, options: .repeating)
+            
+            VStack(spacing: 4) {
+                Text("ALARMA")
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundColor(state.accentColor.opacity(0.8))
+                Text(state.activeAlarmLabel)
+                    .font(.system(size: 24, weight: .black, design: .rounded))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 20)
+            
+            Button(action: { state.stopAlarm() }) {
+                Text("DETENER")
+                    .font(.system(size: 14, weight: .black))
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 34)
+                    .padding(.vertical, 14)
+                    .background(state.accentColor)
+                    .cornerRadius(22)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 10)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.opacity(0.96))
+        .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
+    }
+
+    var ringingPomodoroOverlay: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "timer")
+                .font(.system(size: 44, weight: .bold))
+                .foregroundColor(state.accentColor)
+                .symbolEffect(.bounce, options: .repeating)
+            
+            VStack(spacing: 4) {
+                Text(state.pomodoroMode == .work ? "DESCANSO TERMINADO" : "ENFOQUE TERMINADO")
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundColor(state.accentColor.opacity(0.8))
+                Text(state.pomodoroMode == .work ? "¡A trabajar!" : "¡Buen trabajo!")
+                    .font(.system(size: 24, weight: .black, design: .rounded))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 20)
+            
+            Button(action: { state.stopPomodoroAlarm() }) {
+                Text("LISTO")
+                    .font(.system(size: 14, weight: .black))
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 34)
+                    .padding(.vertical, 14)
+                    .background(state.accentColor)
+                    .cornerRadius(22)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 10)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.opacity(0.96))
+        .clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
     }
     
     func widgetCard(icon: String, iconColor: Color, title: String, mainText: String, subText: String) -> some View {

@@ -147,7 +147,13 @@ class IslandState: ObservableObject {
     @Published var showClock: Bool = true { didSet { saveSettings() } }
     @Published var showWidgetPicker: Bool = false
     
-    // Meeting Mode
+    // Alarms & Alerts
+    @Published var isAlarmRinging: Bool = false
+    @Published var activeAlarmLabel: String = ""
+    @Published var isPomodoroRinging: Bool = false
+    private var alarmSound: NSSound? = NSSound(named: "Glass")
+    
+    // Pomodoro Persistence & Status
     @Published var isMicMuted: Bool = false
     @Published var isDNDActive: Bool = false
     
@@ -1053,7 +1059,33 @@ class IslandState: ObservableObject {
                 showNotification("¡Descanso terminado! A trabajar.")
             }
             isPomodoroRunning = false
+            triggerPomodoroAlarm()
         }
+    }
+    
+    private func triggerPomodoroAlarm() {
+        isPomodoroRinging = true
+        isExpanded = true
+        
+        alarmSound?.loops = true
+        alarmSound?.play()
+        
+        // Auto-stop after 1 minute
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self] in
+            if self?.isPomodoroRinging == true {
+                self?.stopPomodoroAlarm()
+            }
+        }
+    }
+    
+    func stopPomodoroAlarm() {
+        isPomodoroRinging = false
+        alarmSound?.stop()
+    }
+    
+    func stopAlarm() {
+        isAlarmRinging = false
+        alarmSound?.stop()
     }
             // MARK: - Persistence
     
@@ -1229,27 +1261,42 @@ class IslandState: ObservableObject {
             if components.hour == alarmComponents.hour &&
                components.minute == alarmComponents.minute {
                 
-                // Trigger only at 0 seconds (or close to it to avoid missing it)
+                // Trigger only at 0 seconds
                 if let sec = components.second, sec == 0 {
                     // Check Repetition
                     let currentWeekday = components.weekday! // 1-7
                     if alarm.repeatDays.isEmpty || alarm.repeatDays.contains(currentWeekday) {
-                        print("🔔 ALARM TRIGGERED: \(alarm.label)")
-                        showNotification("Alarma: \(alarm.label)")
-                        
-                        // Play Sound
-                        NSSound(named: "Glass")?.play()
-                        // Fallback beep
-                        NSSound.beep()
-                        
-                        // If not repeating, disable it
-                        if alarm.repeatDays.isEmpty {
-                            if let index = alarms.firstIndex(where: { $0.id == alarm.id }) {
-                                alarms[index].isEnabled = false
-                            }
-                        }
+                        triggerAlarm(alarm)
                     }
                 }
+            }
+        }
+    }
+    
+    private func triggerAlarm(_ alarm: Alarm) {
+        print("🔔 ALARM TRIGGERED: \(alarm.label)")
+        activeAlarmLabel = alarm.label.isEmpty ? "Alarma" : alarm.label
+        isAlarmRinging = true
+        activeCategory = "widgets"
+        isExpanded = true
+        
+        showNotification("Alarma: \(activeAlarmLabel)")
+        
+        // Loop sound for 60 seconds
+        alarmSound?.loops = true
+        alarmSound?.play()
+        
+        // Auto-stop after 1 minute if user hasn't stopped it
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self] in
+            if self?.isAlarmRinging == true {
+                self?.stopAlarm()
+            }
+        }
+        
+        // If not repeating, disable it
+        if alarm.repeatDays.isEmpty {
+            if let index = alarms.firstIndex(where: { $0.id == alarm.id }) {
+                alarms[index].isEnabled = false
             }
         }
     }
