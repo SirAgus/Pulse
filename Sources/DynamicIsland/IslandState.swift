@@ -50,18 +50,26 @@ class IslandState: ObservableObject {
             }
         }
     }
+    private var lastCollapseTime: Date = .distantPast
+    
     @Published var isHovering: Bool = false {
         didSet {
             if isHovering {
                 cancelCollapseTimer()
+                
+                // Don't re-expand if we just collapsed (prevents loop when clicking outside)
+                let timeSinceCollapse = Date().timeIntervalSince(lastCollapseTime)
+                if timeSinceCollapse < 0.5 {
+                    print("🛡️ Blocking hover expansion (too soon after collapse)")
+                    return
+                }
+
                 if mode == .idle {
                     setMode(.compact, autoCollapse: false)
                 }
                 if !isExpanded {
                     expand()
                 }
-            } else {
-                // Don't start collapse timer - island stays visible
             }
         }
     }
@@ -487,10 +495,10 @@ class IslandState: ObservableObject {
     
     func collapse() {
         guard isExpanded else { return }
+        lastCollapseTime = Date()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0)) {
             isExpanded = false
         }
-        // No timer - island stays visible in compact mode
     }
     
     func setMode(_ newMode: IslandMode, autoCollapse: Bool = true) {
@@ -498,6 +506,9 @@ class IslandState: ObservableObject {
             mode = newMode
             if newMode == .battery {
                 isExpanded = true
+            }
+            if newMode == .idle {
+                isExpanded = false
             }
         }
         

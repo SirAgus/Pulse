@@ -44,36 +44,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func setupClickOutsideMonitor() {
-        // Global monitor catches clicks on other apps/desktop
+        // 1. Global monitor catches clicks on other apps/desktop
         NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                
-                // 1. Skip if we are ignoring clicks manually
-                if self.ignoreNextOutsideClick {
-                    print("⏭️ Ignoring outside click (was from menu)")
-                    self.ignoreNextOutsideClick = false
-                    return
-                }
-                
-                // 2. Geometry Check: Is the click actually inside our window?
-                // Sometimes clicks on non-key windows are reported as global
-                if let window = self.window, window.isVisible {
-                    let clickLocation = NSEvent.mouseLocation // Global screen coordinates
-                    if window.frame.contains(clickLocation) {
-                        print("✋ Click inside window frame detected (Global Monitor) - Ignoring collapse")
-                        return
-                    }
-                }
-                
-                // 3. Collapse if genuinely outside
-                if IslandState.shared.isExpanded {
-                    print("👆 Outside click detected - collapsing")
-                    IslandState.shared.collapse()
-                } else if IslandState.shared.mode != .idle {
-                    print("👆 Outside click detected while collapsed - hiding (going idle)")
-                    IslandState.shared.setMode(.idle)
-                }
+            self?.handleOutsideClick(event: event)
+        }
+        
+        // 2. Local monitor catches clicks on the transparent parts of our own window
+        NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            // If the event window is our window, check if it hit any content
+            if let window = self?.window, event.window == window {
+                // If it's a click on our window, we only want to collapse if it didn't hit anything
+                // SwiftUI handles the hits, so if we are here and we want to collapse on empty space:
+                // We'll let the view handle its own taps, and use this to catch anything else.
+                // However, the simplest way is to just handle the 'outside' logic in a helper.
+            }
+            return event
+        }
+    }
+    
+    private func handleOutsideClick(event: NSEvent) {
+        DispatchQueue.main.async {
+            // 1. Skip if we are ignoring clicks manually
+            if self.ignoreNextOutsideClick {
+                self.ignoreNextOutsideClick = false
+                return
+            }
+            
+            // 2. Collapse if expanded
+            if IslandState.shared.isExpanded {
+                print("👆 Outside click detected - collapsing")
+                IslandState.shared.collapse()
+            } else if IslandState.shared.mode != .idle {
+                // If already collapsed, hide it (go idle)
+                print("👆 Outside click detected while collapsed - hiding (going idle)")
+                IslandState.shared.setMode(.idle)
             }
         }
     }

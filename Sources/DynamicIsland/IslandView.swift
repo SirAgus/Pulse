@@ -22,7 +22,7 @@ struct IslandView: View {
         ZStack {
             // Main Island Background with Tap Gesture
             Rectangle()
-                .fill((state.backgroundStyle == .solid || !state.isExpanded) && state.mode != .idle ? state.islandColor.opacity(0.98) : Color.black.opacity(0.1))
+                .fill((state.backgroundStyle == .solid || !state.isExpanded) && state.mode != .idle ? state.islandColor.opacity(0.98) : (state.mode == .idle ? Color.clear : Color.black.opacity(0.1)))
                 .onTapGesture {
                     if !state.isExpanded {
                         state.toggleExpand()
@@ -31,19 +31,21 @@ struct IslandView: View {
                 .allowsHitTesting(!state.isExpanded)
                 .background(
                     ZStack {
-                        if state.backgroundStyle == .liquidGlass {
-                            VisualEffectView(material: .headerView, blendingMode: .behindWindow)
-                                .background(Color.black.opacity(0.4)) // Darker base for liquid glass
-                                .overlay(
-                                    Rectangle()
-                                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                                )
-                        } else if state.backgroundStyle == .liquidGlassDark {
-                            VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
-                                .overlay(
-                                    Rectangle()
-                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                                )
+                        if state.mode != .idle {
+                            if state.backgroundStyle == .liquidGlass {
+                                VisualEffectView(material: .headerView, blendingMode: .behindWindow)
+                                    .background(Color.black.opacity(0.4)) // Darker base for liquid glass
+                                    .overlay(
+                                        Rectangle()
+                                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    )
+                            } else if state.backgroundStyle == .liquidGlassDark {
+                                VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
+                                    .overlay(
+                                        Rectangle()
+                                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                    )
+                            }
                         }
                     }
                 )
