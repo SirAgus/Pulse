@@ -92,7 +92,7 @@ struct IslandView: View {
                 if state.isExpanded {
                     expandedDashboardContent
                 } else {
-                    compactContent
+                    compactProductivityContent
                 }
             case .music:
                 if state.isExpanded {
@@ -104,13 +104,13 @@ struct IslandView: View {
                 if state.isExpanded {
                     expandedTimerContent
                 } else {
-                    compactContent
+                    compactTimerContent
                 }
             case .notes:
                 if state.isExpanded {
                     expandedNotesContent
                 } else {
-                    compactContent
+                    compactNotesContent
                 }
             case .battery:
                 batteryContent
@@ -125,28 +125,13 @@ struct IslandView: View {
     
     var compactContent: some View {
         HStack {
-            // Left: Status dots or Mode Icon
+            // Left: Status dot
             HStack(spacing: 6) {
-                if state.mode == .productivity || state.isPomodoroRunning {
-                    // Focus/Timer Mode: Icon + Countdown
-                    Image(systemName: "timer")
-                        .font(.system(size: 12))
-                        .foregroundColor(.orange)
-                    
-                    if state.isPomodoroRunning {
-                        Text(state.formatPomodoroTime())
-                            .font(.system(size: 12, weight: .black, design: .monospaced))
-                            .foregroundColor(.orange)
-                            .fixedSize()
-                    }
-                } else {
-                    // Normal Mode: Status Dot
-                    Circle()
-                        .fill(state.isMicMuted ? Color.red : state.accentColor.opacity(0.5))
-                        .frame(width: 6, height: 6)
-                }
+                Circle()
+                    .fill(state.isMicMuted ? Color.red : state.accentColor.opacity(0.5))
+                    .frame(width: 6, height: 6)
             }
-            .frame(width: state.mode == .productivity || state.isPomodoroRunning ? 70 : 30, alignment: .leading)
+            .frame(width: 30, alignment: .leading)
             .padding(.leading, 15)
             
             Spacer()
@@ -158,17 +143,15 @@ struct IslandView: View {
                     .foregroundColor(.white)
                     .fixedSize()
                 
-                // Only show date if timer is NOT running/visible (to save space)
-                if !(state.mode == .productivity || state.isPomodoroRunning) {
-                    Text(formattedShortDate)
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.6))
-                }
+                Text(formattedShortDate)
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundColor(.white.opacity(0.6))
+                    .fixedSize()
             }
             
             Spacer()
             
-            // Right: Status info
+            // Right: Battery info
             HStack(spacing: 8) {
                 Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.100")
                     .font(.system(size: 14))
@@ -177,7 +160,7 @@ struct IslandView: View {
             .frame(width: 30, alignment: .trailing)
             .padding(.trailing, 15)
         }
-        .padding(.bottom, 6) // Closer to bottom edge
+        .padding(.bottom, 6)
         .frame(maxHeight: .infinity, alignment: .bottom)
         .contentShape(Rectangle())
         .onTapGesture {
@@ -199,38 +182,59 @@ struct IslandView: View {
     }
     
     var compactProductivityContent: some View {
-        HStack(spacing: 10) {
-            if state.isPomodoroRunning {
-                HStack(spacing: 6) {
+        HStack {
+            HStack(spacing: 8) {
+                if state.isPomodoroRunning {
                     if let icon = timerIcon {
                         Image(nsImage: icon)
                             .resizable()
                             .frame(width: 16, height: 16)
                     }
-                    Text(state.formatPomodoroTime())
-                        .font(.system(size: 12, weight: .black, design: .monospaced))
-                        .foregroundColor(.orange)
-                }
-            } else if state.isMicMuted {
-                HStack(spacing: 6) {
+                } else if state.isMicMuted {
                     Image(systemName: "mic.slash.fill")
                         .font(.system(size: 12))
                         .foregroundColor(.red)
+                } else {
+                    Circle()
+                        .fill(state.accentColor.opacity(0.5))
+                        .frame(width: 6, height: 6)
+                }
+            }
+            .frame(width: 30, alignment: .leading)
+            .padding(.leading, 15)
+            
+            Spacer()
+            
+            VStack(spacing: -3) {
+                if state.isPomodoroRunning {
+                    Text(state.formatPomodoroTime())
+                        .font(.system(size: 13, weight: .black, design: .monospaced))
+                        .foregroundColor(.orange)
+                        .fixedSize()
+                } else if state.isMicMuted {
                     Text("MUTE")
                         .font(.system(size: 10, weight: .bold))
+                } else {
+                    Text("Productividad")
+                        .font(.system(size: 11, weight: .bold))
                 }
-            } else {
-                Text("Productividad")
-                    .font(.system(size: 11, weight: .bold))
             }
+            
+            Spacer()
+            
+            HStack(spacing: 8) {
+                Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.100")
+                    .font(.system(size: 14))
+                    .foregroundColor(state.batteryLevel < 20 ? .red : .green)
+            }
+            .frame(width: 30, alignment: .trailing)
+            .padding(.trailing, 15)
         }
+        .padding(.bottom, 6)
+        .frame(maxHeight: .infinity, alignment: .bottom)
         .contentShape(Rectangle())
         .onTapGesture {
-            if !state.isExpanded {
-                withAnimation(.spring()) {
-                    state.toggleExpand()
-                }
-            }
+            state.toggleExpand()
         }
     }
     
@@ -306,11 +310,7 @@ struct IslandView: View {
         .frame(maxHeight: .infinity, alignment: .bottom)
         .contentShape(Rectangle())
         .onTapGesture {
-            if !state.isExpanded {
-                withAnimation(.spring()) {
-                    state.toggleExpand()
-                }
-            }
+            state.toggleExpand()
         }
         .highPriorityGesture(
             DragGesture(minimumDistance: 20, coordinateSpace: .local)
@@ -327,20 +327,35 @@ struct IslandView: View {
     // MARK: - Native Timer Views
     
     var compactTimerContent: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "timer")
-                .foregroundColor(.orange)
-                .font(.system(size: 14, weight: .bold))
+        HStack {
+            HStack(spacing: 8) {
+                Image(systemName: "timer")
+                    .foregroundColor(.orange)
+                    .font(.system(size: 14, weight: .bold))
+            }
+            .frame(width: 30, alignment: .leading)
+            .padding(.leading, 15)
+            
+            Spacer()
+            
             Text(formatTime(state.timerRemaining))
                 .font(.system(size: 12, weight: .bold, design: .monospaced))
+            
+            Spacer()
+            
+            HStack(spacing: 8) {
+                Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.100")
+                    .font(.system(size: 14))
+                    .foregroundColor(state.batteryLevel < 20 ? .red : .green)
+            }
+            .frame(width: 30, alignment: .trailing)
+            .padding(.trailing, 15)
         }
+        .padding(.bottom, 6)
+        .frame(maxHeight: .infinity, alignment: .bottom)
         .contentShape(Rectangle())
         .onTapGesture {
-            if !state.isExpanded {
-                withAnimation(.spring()) {
-                    state.toggleExpand()
-                }
-            }
+            state.toggleExpand()
         }
     }
     
@@ -404,21 +419,36 @@ struct IslandView: View {
     // MARK: - Native Notes Views
     
     var compactNotesContent: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "note.text")
-                .foregroundColor(.yellow)
+        HStack {
+            HStack(spacing: 8) {
+                Image(systemName: "note.text")
+                    .foregroundColor(.yellow)
+            }
+            .frame(width: 30, alignment: .leading)
+            .padding(.leading, 15)
+            
+            Spacer()
+            
             Text(state.notes.first?.content ?? "Notas")
                 .font(.system(size: 11, weight: .medium))
                 .lineLimit(1)
-                .frame(maxWidth: 80)
+                .frame(maxWidth: .infinity)
+            
+            Spacer()
+            
+            HStack(spacing: 8) {
+                Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.100")
+                    .font(.system(size: 14))
+                    .foregroundColor(state.batteryLevel < 20 ? .red : .green)
+            }
+            .frame(width: 30, alignment: .trailing)
+            .padding(.trailing, 15)
         }
+        .padding(.bottom, 6)
+        .frame(maxHeight: .infinity, alignment: .bottom)
         .contentShape(Rectangle())
         .onTapGesture {
-            if !state.isExpanded {
-                withAnimation(.spring()) {
-                    state.toggleExpand()
-                }
-            }
+            state.toggleExpand()
         }
     }
     
@@ -2910,18 +2940,21 @@ struct IslandView: View {
     }
     
     var batteryContent: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.75")
                 .foregroundColor(state.isCharging ? .green : .white)
                 .font(.system(size: 16, weight: .bold))
+            
             Text("\(state.batteryLevel)%")
                 .font(.system(size: 14, weight: .bold, design: .rounded))
         }
+        .padding(.bottom, 6)
+        .frame(maxHeight: .infinity, alignment: .bottom)
     }
     
     var volumeContent: some View {
         HStack(spacing: 10) {
-            Image(systemName: "speaker.wave.3.fill")
+            Image(systemName: state.volume == 0 ? "speaker.slash.fill" : "speaker.wave.3.fill")
                 .font(.system(size: 12))
             
             GeometryReader { proxy in
@@ -2935,8 +2968,9 @@ struct IslandView: View {
             }
             .frame(height: 5)
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 45) // Protection for volume below notch
+        .padding(.horizontal, 15)
+        .padding(.bottom, 6)
+        .frame(maxHeight: .infinity, alignment: .bottom)
     }
     
     func formatTime(_ seconds: Double) -> String {

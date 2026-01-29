@@ -1163,8 +1163,8 @@ class IslandState: ObservableObject {
             case .idle: return hasNotch ? notchWidth : 180
             case .compact: return baseWidth
             case .music: return baseWidth + 40
-            case .battery: return 120
-            case .volume: return 120
+            case .battery: return hasNotch ? baseWidth : 120
+            case .volume: return hasNotch ? baseWidth : 200
             case .timer: return baseWidth // Standard width
             case .notes: return baseWidth // Standard width (was 160)
             case .productivity: return baseWidth
