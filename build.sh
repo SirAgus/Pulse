@@ -62,6 +62,10 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<EOF
     <string>PULSE necesita acceso a ubicación para mostrar el nombre de tu red WiFi.</string>
     <key>NSLocationUsageDescription</key>
     <string>PULSE necesita acceso a ubicación para mostrar el nombre de tu red WiFi.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>PULSE necesita acceso a la cámara para mostrar la vista previa en la isla.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>PULSE necesita acceso al micrófono para detectar niveles de audio (si es necesario).</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
 </dict>

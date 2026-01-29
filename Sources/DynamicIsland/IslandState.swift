@@ -29,6 +29,11 @@ enum BackgroundStyle: String, CaseIterable, Codable {
     case liquidGlassDark = "Liquid Glass Dark"
 }
 
+enum AppLanguage: String, CaseIterable, Codable {
+    case spanish = "Español"
+    case english = "English"
+}
+
 struct BluetoothDevice: Identifiable, Equatable {
     let id: String // MAC Address
     let name: String
@@ -119,12 +124,12 @@ class IslandState: ObservableObject {
     @Published var wspBadge: String = ""
     @Published var slackBadge: String = ""
     // Categories and App State
-    @Published var activeCategory: String = "apps" {
+    @Published var activeCategory: String = "Apps" {
         didSet {
             selectedApp = nil
         }
     }
-    let categories = ["Favoritos", "Recientes", "Dispositivos", "Utilidades", "Configuración"]
+    let categories = ["Apps", "Favoritos", "Recientes", "Dispositivos", "Utilidades", "Configuración"]
     
     
     // Timer State
@@ -149,6 +154,8 @@ class IslandState: ObservableObject {
         didSet { saveSettings() }
     }
     @Published var showCameraPreview: Bool = false { didSet { saveSettings() } }
+    @Published var language: AppLanguage = .spanish { didSet { saveSettings() } }
+    @Published var showSpotifyInstallPrompt: Bool = false
     @Published var accentColor: Color = .white {
         didSet { saveSettings() }
     }
@@ -162,8 +169,6 @@ class IslandState: ObservableObject {
     private var alarmSound: NSSound? = NSSound(named: "Glass")
     
     // Pomodoro Persistence & Status
-    @Published var isMicMuted: Bool = false
-    @Published var isDNDActive: Bool = false
     
     // Persistence Keys
     private let kBackgroundStyle = "kIslandBackgroundStyle"
@@ -171,6 +176,7 @@ class IslandState: ObservableObject {
     private let kAccentColor = "kAccentColor"
     private let kPinnedWidgets = "kPinnedWidgets"
     private let kShowClock = "kShowClock"
+    private let kLanguage = "kLanguage"
     
 
     
@@ -282,7 +288,6 @@ class IslandState: ObservableObject {
             self?.refreshWiFiStatus()
             self?.refreshNotes()
             self?.refreshCalendar()
-            self?.refreshMicStatus()
         }
         
         // System Performance Monitor
@@ -588,7 +593,6 @@ class IslandState: ObservableObject {
     
     // MARK: - System Control (Brightness & Volume)
     
-    @Published var systemBrightness: Float = 0.5
     
     func setSystemVolume(_ level: Float) {
         self.volume = Double(level)
@@ -596,34 +600,7 @@ class IslandState: ObservableObject {
         executeAppleScript(script)
     }
     
-    func setSystemBrightness(_ level: Float) {
-        self.systemBrightness = level
         
-        // Use IOREG/DisplayServices to set brightness
-        // This is a bridge to CoreDisplay for basic brightness control
-        // Note: This often requires private entitlements for full control, but we can try the standard IOKit approach
-        
-        var iterator: io_iterator_t = 0
-        if IOServiceGetMatchingServices(0, IOServiceMatching("IODisplayConnect"), &iterator) == kIOReturnSuccess {
-            var service: io_object_t = 1
-            while service != 0 {
-                service = IOIteratorNext(iterator)
-                if service != 0 {
-                    let key = CFStringCreateWithCString(kCFAllocatorDefault, "IODisplayBrightnessProbe", kCFStringEncodingASCII)
-                    IOODServiceSetValue(service, key, level)
-                    IOObjectRelease(service)
-                }
-            }
-            IOObjectRelease(iterator)
-        }
-        
-        // 2. Try 'brightness' CLI tool fallback
-        let script = "try\ndo shell script \"/usr/local/bin/brightness " + String(level) + "\"\nend try"
-        executeAppleScript(script)
-        
-        // Backup: Brightness via Shortcuts if "Set Brightness" shortcut exists
-        // executeAppleScript("tell application \"Shortcuts Events\" to run shortcut \"Set Brightness\" with input \(level)")
-    }
     
     // Helper to interact with IOKit for brightness (simplified)
     private func IOODServiceSetValue(_ service: io_object_t, _ key: CFString!, _ value: Float) {
@@ -745,6 +722,7 @@ class IslandState: ObservableObject {
         }
     }
     
+    @discardableResult
     func executeAppleScript(_ scriptSource: String) -> String? {
         var error: NSDictionary?
         if let scriptObject = NSAppleScript(source: scriptSource) {
@@ -899,6 +877,27 @@ class IslandState: ObservableObject {
         }
     }
     
+    func checkSpotifyInstalled() -> Bool {
+        if let _ = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.spotify.client") {
+            return true
+        }
+        return false
+    }
+
+    func installSpotify(via: String) {
+        if via == "brew" {
+            let script = "tell application \"Terminal\" to do script \"brew install --cask spotify\""
+            executeAppleScript(script)
+            executeAppleScript("tell application \"Terminal\" to activate")
+        } else {
+            // App Store redirect (Spotify is usually not in Mac App Store in all regions, but we can redirect to web or try appstore link)
+            if let url = URL(string: "https://www.spotify.com/download/mac/") {
+                NSWorkspace.shared.open(url)
+            }
+        }
+        showSpotifyInstallPrompt = false
+    }
+
     func launchApp(named: String) {
         let appName: String = {
             switch named {
@@ -932,9 +931,17 @@ class IslandState: ObservableObject {
             }
         }()
         
-        if let bid = bundleID, let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid) {
-            NSWorkspace.shared.open(appURL)
-            return
+        if let bid = bundleID {
+            if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid) {
+                NSWorkspace.shared.open(appURL)
+                return
+            } else if bid == "com.spotify.client" {
+                withAnimation {
+                    self.showSpotifyInstallPrompt = true
+                    self.isExpanded = true
+                }
+                return
+            }
         }
         
         // Fallback to searching /Applications and /System/Applications
@@ -947,49 +954,17 @@ class IslandState: ObservableObject {
             }
         }
         
-        // Final fallback: try to run it
-        NSWorkspace.shared.launchApplication(appName)
+        // Final fallback: try to run it using openApplication (modern)
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: appName) ?? 
+                    NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.\(appName.lowercased())") {
+            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        }
     }
     
     private func startMockUpdates() {
         // No mocks for now
     }
     
-    // MARK: - Meeting Mode
-    func toggleMic() {
-        let script = """
-        set v to input volume of (get volume settings)
-        if v is 0 then
-            set volume input volume 100
-            return "unmuted"
-        else
-            set volume input volume 0
-            return "muted"
-        end if
-        """
-        if let res = executeAppleScript(script) {
-            isMicMuted = (res.trimmingCharacters(in: .whitespacesAndNewlines) == "muted")
-        }
-    }
-    
-    func refreshMicStatus() {
-        if let volStr = executeAppleScript("input volume of (get volume settings)"), let vol = Int(volStr.trimmingCharacters(in: .whitespacesAndNewlines)) {
-            isMicMuted = (vol == 0)
-        }
-    }
-    
-    func toggleDND() {
-        // Runs the "DND Toggle" shortcut if it exists
-        DispatchQueue.global(qos: .userInitiated).async {
-            let task = Process()
-            task.launchPath = "/usr/bin/shortcuts"
-            task.arguments = ["run", "DND Toggle"]
-            try? task.run()
-            DispatchQueue.main.async {
-                self.isDNDActive.toggle()
-            }
-        }
-    }
     
     // MARK: - Clipboard
     func refreshClipboard() {
@@ -1015,7 +990,7 @@ class IslandState: ObservableObject {
     
     // MARK: - Calendar
     func refreshCalendar() {
-        eventStore.requestAccess(to: .event) { granted, error in
+        let completion: (Bool, Error?) -> Void = { granted, error in
             if granted {
                 let calendars = self.eventStore.calendars(for: .event)
                 let start = Date()
@@ -1035,6 +1010,12 @@ class IslandState: ObservableObject {
                     }
                 }
             }
+        }
+        
+        if #available(macOS 14.0, *) {
+            eventStore.requestFullAccessToEvents(completion: completion)
+        } else {
+            eventStore.requestAccess(to: .event, completion: completion)
         }
     }
     
@@ -1105,6 +1086,7 @@ class IslandState: ObservableObject {
         UserDefaults.standard.set(pinnedWidgets, forKey: kPinnedWidgets)
         UserDefaults.standard.set(showClock, forKey: kShowClock)
         UserDefaults.standard.set(showCameraPreview, forKey: "kShowCameraPreview")
+        UserDefaults.standard.set(language.rawValue, forKey: kLanguage)
         
         if let islandHex = islandColor.toHex() {
             UserDefaults.standard.set(islandHex, forKey: kIslandColor)
@@ -1130,6 +1112,11 @@ class IslandState: ObservableObject {
         
         if UserDefaults.standard.object(forKey: "kShowCameraPreview") != nil {
             self.showCameraPreview = UserDefaults.standard.bool(forKey: "kShowCameraPreview")
+        }
+        
+        if let langRaw = UserDefaults.standard.string(forKey: kLanguage),
+           let lang = AppLanguage(rawValue: langRaw) {
+            self.language = lang
         }
         
         if let islandHex = UserDefaults.standard.string(forKey: kIslandColor) {
@@ -1310,6 +1297,139 @@ class IslandState: ObservableObject {
                 alarms[index].isEnabled = false
             }
         }
+    }
+    
+    func l(_ key: String) -> String {
+        let dict: [String: [AppLanguage: String]] = [
+            "ESTILO": [.spanish: "ESTILO", .english: "STYLE"],
+            "COLOR DEL FONDO (SOLIDO)": [.spanish: "COLOR DEL FONDO (SÓLIDO)", .english: "BACKGROUND COLOR (SOLID)"],
+            "Personalizado": [.spanish: "Personalizado", .english: "Custom"],
+            "COLOR DE ACENTO": [.spanish: "COLOR DE ACENTO", .english: "ACCENT COLOR"],
+            "IDIOMA": [.spanish: "IDIOMA", .english: "LANGUAGE"],
+            "Cerrar Island": [.spanish: "Cerrar Island", .english: "Close Island"],
+            "ACCESO RÁPIDO": [.spanish: "ACCESO RÁPIDO", .english: "QUICK ACCESS"],
+            "WIDGETS DEL SISTEMA": [.spanish: "WIDGETS DEL SISTEMA", .english: "SYSTEM WIDGETS"],
+            "LISTO": [.spanish: "LISTO", .english: "DONE"],
+            "AÑADIR": [.spanish: "AÑADIR", .english: "ADD"],
+            "ALARMAS": [.spanish: "ALARMAS", .english: "ALARMS"],
+            "VISTA PREVIA DE CÁMARA": [.spanish: "VISTA PREVIA DE CÁMARA", .english: "CAMERA PREVIEW"],
+            "Cámara Apagada": [.spanish: "Cámara Apagada", .english: "Camera Off"],
+            "PRÓXIMO": [.spanish: "PRÓXIMO", .english: "NEXT EVENT"],
+            "Sin eventos": [.spanish: "Sin eventos", .english: "No events"],
+            "MIS NOTAS": [.spanish: "MIS NOTAS", .english: "MY NOTES"],
+            "EDITOR DE NOTAS": [.spanish: "EDITOR DE NOTAS", .english: "NOTE EDITOR"],
+            "Mis Notas": [.spanish: "Mis Notas", .english: "My Notes"],
+            "TEMPORIZADOR": [.spanish: "TEMPORIZADOR", .english: "TIMER"],
+            "Nueva Nota de Dynamic Island": [.spanish: "Nueva Nota de Dynamic Island", .english: "New Dynamic Island Note"],
+            "PAUSAR": [.spanish: "PAUSAR", .english: "PAUSE"],
+            "Spotify no instalado": [.spanish: "Spotify no instalado", .english: "Spotify not installed"],
+            "Parece que no tienes Spotify. ¿Quieres instalarlo?": [.spanish: "Parece que no tienes Spotify. ¿Quieres instalarlo?", .english: "It looks like you don't have Spotify. Do you want to install it?"],
+            "Instalar por Brew": [.spanish: "Instalar por Brew", .english: "Install via Brew"],
+            "Ir a la Web": [.spanish: "Ir a la Web", .english: "Go to Web"],
+            "Cancelar": [.spanish: "Cancelar", .english: "Cancel"],
+            "INICIAR": [.spanish: "INICIAR", .english: "START"],
+            "ENFOQUE": [.spanish: "ENFOQUE", .english: "FOCUS"],
+            "PORTAPAPELES": [.spanish: "PORTAPAPELES", .english: "CLIPBOARD"],
+            "PRÓXIMO EVENTO": [.spanish: "PRÓXIMO EVENTO", .english: "NEXT EVENT"],
+            "TU AGENDA": [.spanish: "TU AGENDA", .english: "YOUR AGENDA"],
+            "NOTAS RÁPIDAS": [.spanish: "NOTAS RÁPIDAS", .english: "QUICK NOTES"],
+            "Copia algo para empezar...": [.spanish: "Copia algo para empezar...", .english: "Copy something to start..."],
+            "No hay eventos próximos": [.spanish: "No hay eventos próximos", .english: "No upcoming events"],
+            "Mostrar Reloj": [.spanish: "Mostrar Reloj", .english: "Show Clock"],
+            "CONFIGURACIÓN DE LA ISLA": [.spanish: "CONFIGURACIÓN DE LA ISLA", .english: "ISLAND SETTINGS"],
+            "Color Fondo": [.spanish: "Color Fondo", .english: "Island Color"],
+            "CPU": [.spanish: "CPU", .english: "CPU"],
+            "RAM": [.spanish: "Memoria RAM", .english: "Memory RAM"],
+            "TEMP": [.spanish: "Temperatura", .english: "Temperature"],
+            "SSD": [.spanish: "Disco SSD", .english: "SSD Drive"],
+            "Sin alarmas": [.spanish: "Sin alarmas", .english: "No alarms"],
+            "VACÍO": [.spanish: "VACÍO", .english: "EMPTY"],
+            "Alarma": [.spanish: "Alarma", .english: "Alarm"],
+            "ENFOQUE POMODORO": [.spanish: "ENFOQUE POMODORO", .english: "POMODORO FOCUS"],
+            "TRABAJANDO...": [.spanish: "TRABAJANDO...", .english: "WORKING..."],
+            "DETENIDO": [.spanish: "DETENIDO", .english: "STOPPED"],
+            "Sistema macOS": [.spanish: "Sistema macOS", .english: "macOS System"],
+            "BLUETOOTH": [.spanish: "BLUETOOTH", .english: "BLUETOOTH"],
+            "Favoritos": [.spanish: "Favoritos", .english: "Favorites"],
+            "Recientes": [.spanish: "Recientes", .english: "Recents"],
+            "Dispositivos": [.spanish: "Dispositivos", .english: "Devices"],
+            "Utilidades": [.spanish: "Utilidades", .english: "Utilities"],
+            "Configuración": [.spanish: "Configuración", .english: "Settings"],
+            "APPS": [.spanish: "APLICACIONES", .english: "APPLICATIONS"],
+            "FAVORITOS": [.spanish: "FAVORITOS", .english: "FAVORITES"],
+            "RECIENTES": [.spanish: "RECIENTES", .english: "RECENTS"],
+            "DISPOSITIVOS": [.spanish: "DISPOSITIVOS", .english: "DEVICES"],
+            "UTILIDADES": [.spanish: "UTILIDADES", .english: "UTILITIES"],
+            "CONFIGURACIÓN": [.spanish: "CONFIGURACIÓN", .english: "SETTINGS"],
+            "Apps": [.spanish: "Apps", .english: "Apps"],
+            "Connect": [.spanish: "Conectar", .english: "Connect"],
+            "Clip": [.spanish: "Clip", .english: "Clip"],
+            "Nook": [.spanish: "Rincón", .english: "Nook"],
+            "Media": [.spanish: "Media", .english: "Media"],
+            "Focus": [.spanish: "Enfoque", .english: "Focus"],
+            "Setup": [.spanish: "Ajustes", .english: "Setup"],
+            "MODO PRODUCTIVIDAD": [.spanish: "MODO PRODUCTIVIDAD", .english: "PRODUCTIVITY MODE"],
+            "BLOQUEADOR DE DISTRACCIONES": [.spanish: "BLOQUEADOR DE DISTRACCIONES", .english: "DISTRACTION BLOCKER"],
+            "Notas": [.spanish: "Notas", .english: "Notes"],
+            "Timer": [.spanish: "Temporizador", .english: "Timer"],
+            "MINUTOS": [.spanish: "MINUTOS", .english: "MINUTES"],
+            "NOMBRE DE LA SESIÓN": [.spanish: "NOMBRE DE LA SESIÓN", .english: "SESSION NAME"],
+            "PERSONALIZADO:": [.spanish: "PERSONALIZADO:", .english: "CUSTOM:"],
+            "FIJAR": [.spanish: "FIJAR", .english: "SET"],
+            "BLOQUEO DE DISTRACCIONES:": [.spanish: "BLOQUEO DE DISTRACCIONES:", .english: "DISTRACTION BLOCK:"],
+            "ACTIVO": [.spanish: "ACTIVO", .english: "ACTIVE"],
+            "INACTIVO": [.spanish: "INACTIVO", .english: "INACTIVE"],
+            "No reproduciendo": [.spanish: "No reproduciendo", .english: "Not playing"],
+            "WiFi Conectado": [.spanish: "WiFi Conectado", .english: "WiFi Connected"],
+            "SEÑAL": [.spanish: "SEÑAL", .english: "SIGNAL"],
+            "VELOCIDAD": [.spanish: "VELOCIDAD", .english: "SPEED"],
+            "DISPOSITIVOS BLUETOOTH": [.spanish: "DISPOSITIVOS BLUETOOTH", .english: "BLUETOOTH DEVICES"],
+            "No hay dispositivos conectados": [.spanish: "No hay dispositivos conectados", .english: "No devices connected"],
+            "HISTORIAL DE PORTAPAPELES": [.spanish: "HISTORIAL DE PORTAPAPELES", .english: "CLIPBOARD HISTORY"],
+            "LIMPIAR": [.spanish: "LIMPIAR", .english: "CLEAR"],
+            "Vacío": [.spanish: "Vacío", .english: "Empty"],
+            "Calendario": [.spanish: "Calendario", .english: "Calendar"],
+            "Multitarea rápida": [.spanish: "Multitarea rápida", .english: "Quick multitasking"],
+            "WiFi Tooltip": [.spanish: "Estos valores se leen directamente del hardware Wi-Fi (CoreWLAN) en tiempo real, sin realizar descargas.\n\n• Velocidad: Tasa de enlace (TX Rate).\n• Señal: Potencia (RSSI).", .english: "These values are read directly from the Wi-Fi hardware (CoreWLAN) in real-time, without downloads.\n\n• Speed: Link Rate (TX Rate).\n• Signal: Power (RSSI)."],
+            "Signal Tooltip": [.spanish: "dBm (decibelios-milivatio): mide la potencia de la señal recibida.\n\n• -30 a -60: Excelente\n• -60 a -75: Aceptable\n• -80 o menos: Mala", .english: "dBm (decibel-milliwatts): measures the power level of the received signal.\n\n• -30 to -60: Excellent\n• -60 to -75: Aceptable\n• -80 or less: Poor"],
+            "Speed Tooltip": [.spanish: "Mbps (Megabits por segundo):\n\nEs la tasa de transferencia teórica (TX Rate) entre tu Mac y el Router, NO la velocidad de Internet.", .english: "Mbps (Megabits per second):\n\nThis is the theoretical transfer rate (TX Rate) between your Mac and the Router, NOT Internet speed."],
+            "SUELTA ARCHIVOS AQUÍ": [.spanish: "SUELTA ARCHIVOS AQUÍ", .english: "DROP FILES HERE"],
+            "PAUSA": [.spanish: "PAUSA", .english: "PAUSE"],
+            "TRABAJO": [.spanish: "TRABAJO", .english: "WORK"],
+            "DESCANSO": [.spanish: "DESCANSO", .english: "REST"],
+            "WiFi Apagado": [.spanish: "WiFi Apagado", .english: "WiFi Off"],
+            "Sin WiFi": [.spanish: "Sin WiFi", .english: "No WiFi"],
+            "MUTE": [.spanish: "SILENCIO", .english: "MUTE"],
+            "Productividad": [.spanish: "Productividad", .english: "Productivity"],
+            "Conectando con iCloud...": [.spanish: "Conectando con iCloud...", .english: "Connecting to iCloud..."],
+            "SINCRONIZADO": [.spanish: "SINCRONIZADO", .english: "SYNCED"],
+            "No hay alarmas configuradas": [.spanish: "No hay alarmas configuradas", .english: "No alarms configured"],
+            "ALARMA": [.spanish: "ALARMA", .english: "ALARM"],
+            "DETENER": [.spanish: "DETENER", .english: "STOP"],
+            "Conectado": [.spanish: "Conectado", .english: "Connected"],
+            "Desconectar": [.spanish: "Desconectar", .english: "Disconnect"],
+            "Buscando dispositivos...": [.spanish: "Buscando dispositivos...", .english: "Searching for devices..."],
+            "Wi-Fi": [.spanish: "Wi-Fi", .english: "Wi-Fi"],
+            "Información de ": [.spanish: "Información de ", .english: "Information of "],
+            "POMODORO": [.spanish: "POMODORO", .english: "POMODORO"],
+            "Focus...": [.spanish: "Enfoque...", .english: "Focus..."],
+            "Música": [.spanish: "Música", .english: "Music"],
+            "DESCANSO TERMINADO": [.spanish: "DESCANSO TERMINADO", .english: "REST FINISHED"],
+            "ENFOQUE TERMINADO": [.spanish: "ENFOQUE TERMINADO", .english: "FOCUS FINISHED"],
+            "¡A trabajar!": [.spanish: "¡A trabajar!", .english: "Get to work!"],
+            "¡Buen trabajo!": [.spanish: "¡Buen trabajo!", .english: "Great job!"],
+            " más...": [.spanish: " más...", .english: " more..."],
+            "Escribe tu nota aquí...": [.spanish: "Escribe tu nota aquí...", .english: "Write your note here..."],
+            "Etiqueta": [.spanish: "Etiqueta", .english: "Label"],
+            "Mesh Gradient": [.spanish: "Gradiante Mesh", .english: "Mesh Gradient"],
+            "Glassmorphism": [.spanish: "Efecto Vidrio", .english: "Glassmorphism"],
+            "Solid Color": [.spanish: "Color Sólido", .english: "Solid Color"],
+            "Español": [.spanish: "Español", .english: "Spanish"],
+            "English": [.spanish: "Inglés", .english: "English"],
+            "UNIRSE": [.spanish: "UNIRSE", .english: "JOIN"]
+        ]
+        
+        return dict[key]?[language] ?? key
     }
 }
 

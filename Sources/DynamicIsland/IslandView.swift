@@ -73,6 +73,11 @@ struct IslandView: View {
                     compactRingingPomodoroOverlay
                 }
             }
+
+            // Spotify Install Prompt
+            if state.showSpotifyInstallPrompt {
+                spotifyInstallOverlay
+            }
         }
         .padding(.top, 0)
         .background(Color.clear)
@@ -138,7 +143,7 @@ struct IslandView: View {
             // Left: Status dot
             HStack(spacing: 6) {
                 Circle()
-                    .fill(state.isMicMuted ? Color.red : state.accentColor.opacity(0.5))
+                    .fill(state.accentColor.opacity(0.5))
                     .frame(width: 6, height: 6)
             }
             .frame(width: 30, alignment: .leading)
@@ -200,11 +205,6 @@ struct IslandView: View {
                             .resizable()
                             .frame(width: 16, height: 16)
                     }
-                } else if state.isMicMuted {
-                    Image(systemName: "mic.slash.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(.red)
-                } else {
                     Circle()
                         .fill(state.accentColor.opacity(0.5))
                         .frame(width: 6, height: 6)
@@ -221,11 +221,8 @@ struct IslandView: View {
                         .font(.system(size: 13, weight: .black, design: .monospaced))
                         .foregroundColor(.orange)
                         .fixedSize()
-                } else if state.isMicMuted {
-                    Text("MUTE")
-                        .font(.system(size: 10, weight: .bold))
                 } else {
-                    Text("Productividad")
+                    Text(state.l("Productividad"))
                         .font(.system(size: 11, weight: .bold))
                 }
             }
@@ -379,7 +376,7 @@ struct IslandView: View {
                 }
                 .buttonStyle(.plain)
                 Spacer()
-                Text("TEMPORIZADOR")
+                Text(state.l("TEMPORIZADOR"))
                     .font(.system(size: 10, weight: .black))
                     .opacity(0.4)
                 Spacer()
@@ -392,7 +389,7 @@ struct IslandView: View {
             HStack(spacing: 15) {
                 if state.isTimerRunning {
                     Button(action: { state.stopTimer() }) {
-                        Text("PAUSAR")
+                        Text(state.l("PAUSAR"))
                             .font(.system(size: 12, weight: .bold))
                             .frame(maxWidth: .infinity)
                             .frame(height: 40)
@@ -469,7 +466,7 @@ struct IslandView: View {
                     Button(action: { withAnimation(.spring()) { state.editingNoteIndex = nil } }) {
                         HStack(spacing: 6) {
                             Image(systemName: "chevron.left")
-                            Text("Mis Notas")
+                            Text(state.l("Mis Notas"))
                         }
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.yellow)
@@ -516,7 +513,7 @@ struct IslandView: View {
                         withAnimation(.spring()) { state.editingNoteIndex = nil }
                     }
                 }) {
-                    Text("LISTO")
+                    Text(state.l("LISTO"))
                         .font(.system(size: 10, weight: .black))
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
@@ -540,7 +537,7 @@ struct IslandView: View {
     var notesEditor: some View {
         Group {
             if let index = state.editingNoteIndex {
-                TextField("Escribe tu nota aquí...", text: Binding(
+                TextField(state.l("Escribe tu nota aquí..."), text: Binding(
                     get: { state.notes[safe: index]?.content ?? "" },
                     set: { state.notes[index].content = $0 }
                 ), axis: .vertical)
@@ -563,8 +560,8 @@ struct IslandView: View {
                         isNoteFocused = true
                     }
                 }
-                .onChange(of: state.editingNoteIndex) { newValue in
-                    if newValue != nil {
+                .onChange(of: state.editingNoteIndex) { oldVal, newVal in
+                    if newVal != nil {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                             isNoteFocused = true
                         }
@@ -580,7 +577,7 @@ struct IslandView: View {
                 if state.isSyncingNotes && state.notes.isEmpty {
                     VStack(spacing: 15) {
                         ProgressView().scaleEffect(0.8)
-                        Text("Conectando con iCloud...").font(.system(size: 12, weight: .bold)).opacity(0.4)
+                        Text(state.l("Conectando con iCloud...")).font(.system(size: 12, weight: .bold)).opacity(0.4)
                     }.padding(.top, 60).frame(maxWidth: .infinity)
                 } else {
                     ForEach(state.notes.indices, id: \.self) { index in
@@ -594,7 +591,7 @@ struct IslandView: View {
                                 
                                 HStack(spacing: 4) {
                                     Image(systemName: "icloud.fill").font(.system(size: 9))
-                                    Text("SINCRONIZADO").font(.system(size: 8, weight: .black))
+                                    Text(state.l("SINCRONIZADO")).font(.system(size: 8, weight: .black))
                                     Spacer()
                                     Image(systemName: "chevron.right").font(.system(size: 10)).opacity(0.3)
                                 }
@@ -750,13 +747,13 @@ struct IslandView: View {
     
     var dashboardTabNavigation: some View {
         let tabs = [
-            ("Apps", "square.grid.2x2", "apps"),
-            ("Connect", "network", "connections"),
-            ("Clip", "clipboard", "clipboard"),
-            ("Nook", "plus.circle", "widgets"),
-            ("Media", "music.note", "media"),
-            ("Focus", "target", "focus"),
-            ("Setup", "gearshape", "settings")
+            (state.l("Apps"), "square.grid.2x2", "apps"),
+            (state.l("Connect"), "network", "connections"),
+            (state.l("Clip"), "clipboard", "clipboard"),
+            (state.l("Nook"), "plus.circle", "widgets"),
+            (state.l("Media"), "music.note", "media"),
+            (state.l("Focus"), "target", "focus"),
+            (state.l("Setup"), "gearshape", "settings")
         ]
         
         return HStack(spacing: 6) {
@@ -828,13 +825,13 @@ struct IslandView: View {
             VStack(spacing: 28) {
                 // Apps Grid
                 VStack(alignment: .leading, spacing: 15) {
-                    Text("ACCESO RÁPIDO")
+                    Text(state.l(state.activeCategory.uppercased()))
                         .font(.system(size: 9, weight: .black))
                         .foregroundColor(.white.opacity(0.3))
                         .padding(.horizontal, 4)
                     
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
-                        ForEach(getAppsForCategory("apps"), id: \.id) { app in
+                        ForEach(getAppsForCategory(state.activeCategory), id: \.id) { app in
                             VStack(spacing: 10) {
                                 ZStack {
                                     RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -873,14 +870,14 @@ struct IslandView: View {
 
                 // Header with Widget Adder
                 HStack {
-                    Text("WIDGETS DEL SISTEMA")
+                    Text(state.l("WIDGETS DEL SISTEMA"))
                         .font(.system(size: 9, weight: .black))
                         .foregroundColor(.white.opacity(0.3))
                     Spacer()
                     Button(action: { withAnimation(.spring()) { state.showWidgetPicker.toggle() } }) {
                         HStack(spacing: 4) {
                             Image(systemName: "plus.circle.fill")
-                            Text(state.showWidgetPicker ? "LISTO" : "AÑADIR")
+                            Text(state.showWidgetPicker ? state.l("LISTO") : state.l("AÑADIR"))
                         }
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(state.accentColor)
@@ -925,10 +922,10 @@ struct IslandView: View {
     
     var performanceBentoWidget: some View {
         HStack(spacing: 12) {
-            systemWidget(title: "CPU", value: "\(Int(state.cpuUsage))%", icon: "cpu", color: .green, progress: state.cpuUsage/100)
-            systemWidget(title: "RAM", value: "\(Int(state.ramUsage))%", icon: "memorychip", color: .blue, progress: state.ramUsage/100)
-            systemWidget(title: "TEMP", value: "\(Int(state.systemTemp))°C", icon: "thermometer", color: .orange, progress: (state.systemTemp - 30)/70)
-            systemWidget(title: "SSD", value: state.diskFree, icon: "internaldrive.fill", color: .purple, progress: state.diskUsedPercentage)
+            systemWidget(title: state.l("CPU"), value: "\(Int(state.cpuUsage))%", icon: "cpu", color: .green, progress: state.cpuUsage/100)
+            systemWidget(title: state.l("RAM"), value: "\(Int(state.ramUsage))%", icon: "memorychip", color: .blue, progress: state.ramUsage/100)
+            systemWidget(title: state.l("TEMP"), value: "\(Int(state.systemTemp))°C", icon: "thermometer", color: .orange, progress: (state.systemTemp - 30)/70)
+            systemWidget(title: state.l("SSD"), value: state.diskFree, icon: "internaldrive.fill", color: .purple, progress: state.diskUsedPercentage)
         }
     }
 
@@ -937,7 +934,7 @@ struct IslandView: View {
             HStack {
                 Image(systemName: "alarm.fill")
                     .foregroundColor(.orange)
-                Text("ALARMAS")
+                Text(state.l("ALARMAS"))
                     .font(.system(size: 9, weight: .black))
                     .opacity(0.4)
                 Spacer()
@@ -953,9 +950,9 @@ struct IslandView: View {
                 wideCircularWidget(
                     icon: "alarm",
                     color: .white.opacity(0.3),
-                    title: "ALARMAS",
-                    value: "Sin alarmas",
-                    subValue: "VACÍO",
+                    title: state.l("ALARMAS"),
+                    value: state.l("Sin alarmas"),
+                    subValue: state.l("VACÍO"),
                     action: { withAnimation { state.activeCategory = "widgets" } }
                 )
             } else {
@@ -989,7 +986,7 @@ struct IslandView: View {
                         Text(alarm.time.formatted(date: .omitted, time: .shortened))
                             .font(.system(size: 14, weight: .black))
                             .foregroundColor(alarm.isEnabled ? .white : .white.opacity(0.3))
-                        Text(alarm.label.isEmpty ? "Alarma" : alarm.label)
+                        Text(alarm.label.isEmpty ? state.l("Alarma") : alarm.label)
                             .font(.system(size: 8, weight: .bold))
                             .foregroundColor(alarm.isEnabled ? .orange.opacity(0.8) : .white.opacity(0.2))
                             .lineLimit(1)
@@ -1041,9 +1038,9 @@ struct IslandView: View {
         wideCircularWidget(
             icon: "timer",
             color: .red,
-            title: "ENFOQUE POMODORO",
+            title: state.l("ENFOQUE POMODORO"),
             value: state.formatPomodoroTime(),
-            subValue: state.isPomodoroRunning ? "TRABAJANDO..." : "DETENIDO",
+            subValue: state.isPomodoroRunning ? state.l("TRABAJANDO...") : state.l("DETENIDO"),
             action: {
                 if state.isPomodoroRunning {
                     state.isPomodoroRunning = false
@@ -1207,9 +1204,9 @@ struct IslandView: View {
                 widgetCard(
                     icon: "calendar", 
                     iconColor: .pink, 
-                    title: "PRÓXIMO", 
-                    mainText: state.nextEvent?.title ?? "Sin eventos", 
-                    subText: state.nextEvent?.startDate.formatted(date: .omitted, time: .shortened) ?? "Calendario"
+                    title: state.l("PRÓXIMO"), 
+                    mainText: state.nextEvent?.title ?? state.l("Sin eventos"), 
+                    subText: state.nextEvent?.startDate.formatted(date: .omitted, time: .shortened) ?? state.l("Calendario")
                 )
             }
             
@@ -1219,7 +1216,7 @@ struct IslandView: View {
                     Image(systemName: "camera.fill")
                         .font(.system(size: 12))
                         .foregroundColor(state.accentColor)
-                    Text("VISTA PREVIA DE CÁMARA")
+                    Text(state.l("VISTA PREVIA DE CÁMARA"))
                         .font(.system(size: 9, weight: .black))
                     Spacer()
                     
@@ -1253,7 +1250,7 @@ struct IslandView: View {
                                     Image(systemName: "video.slash.fill")
                                         .font(.system(size: 24))
                                         .opacity(0.3)
-                                    Text("Cámara Apagada")
+                                    Text(state.l("Cámara Apagada"))
                                         .font(.system(size: 10, weight: .bold))
                                         .opacity(0.4)
                                 }
@@ -1289,7 +1286,7 @@ struct IslandView: View {
             Image(systemName: "alarm.fill")
                 .font(.system(size: 12))
                 .foregroundColor(.orange)
-            Text("ALARMAS")
+            Text(state.l("ALARMAS"))
                 .font(.system(size: 9, weight: .black))
             Spacer()
             
@@ -1310,7 +1307,7 @@ struct IslandView: View {
                     .labelsHidden()
                     .colorScheme(.dark)
                 
-                TextField("Etiqueta", text: $newAlarmLabel)
+                TextField(state.l("Etiqueta"), text: $newAlarmLabel)
                     .textFieldStyle(PlainTextFieldStyle())
                     .padding(6)
                     .background(Color.white.opacity(0.1))
@@ -1441,7 +1438,7 @@ struct IslandView: View {
             }
             
             if state.alarms.isEmpty && !isAddingAlarm {
-                Text("No hay alarmas configuradas")
+                Text(state.l("No hay alarmas configuradas"))
                     .font(.system(size: 10))
                     .foregroundColor(.white.opacity(0.4))
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -1479,7 +1476,7 @@ struct IslandView: View {
             }
             
             VStack(spacing: 8) {
-                Text("ALARMA")
+                Text(state.l("ALARMA"))
                     .font(.system(size: 10, weight: .black))
                     .foregroundColor(.orange.opacity(0.8))
                 Text(state.activeAlarmLabel)
@@ -1492,7 +1489,7 @@ struct IslandView: View {
             Spacer()
             
             Button(action: { state.stopAlarm() }) {
-                Text("DETENER")
+                Text(state.l("DETENER"))
                     .font(.system(size: 14, weight: .black))
                     .foregroundColor(.black)
                     .padding(.horizontal, 40)
@@ -1525,10 +1522,10 @@ struct IslandView: View {
             }
             
             VStack(spacing: 8) {
-                Text(state.pomodoroMode == .work ? "DESCANSO TERMINADO" : "ENFOQUE TERMINADO")
+                Text(state.pomodoroMode == .work ? state.l("DESCANSO TERMINADO") : state.l("ENFOQUE TERMINADO"))
                     .font(.system(size: 10, weight: .black))
                     .foregroundColor(state.accentColor.opacity(0.8))
-                Text(state.pomodoroMode == .work ? "¡A trabajar!" : "¡Buen trabajo!")
+                Text(state.pomodoroMode == .work ? state.l("¡A trabajar!") : state.l("¡Buen trabajo!"))
                     .font(.system(size: 24, weight: .black, design: .rounded))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
@@ -1538,7 +1535,7 @@ struct IslandView: View {
             Spacer()
             
             Button(action: { state.stopPomodoroAlarm() }) {
-                Text("LISTO")
+                Text(state.l("LISTO"))
                     .font(.system(size: 14, weight: .black))
                     .foregroundColor(.black)
                     .padding(.horizontal, 40)
@@ -1720,7 +1717,7 @@ struct IslandView: View {
                 
                 // Song Info + Controls
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(state.songTitle.isEmpty ? "No reproduciendo" : state.songTitle)
+                    Text(state.songTitle.isEmpty ? state.l("No reproduciendo") : state.songTitle)
                         .font(.system(size: 16, weight: .black))
                         .lineLimit(1)
                     
@@ -1773,113 +1770,28 @@ struct IslandView: View {
             .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 28).stroke(Color.white.opacity(0.08), lineWidth: 1))
             
-            // Volume & Brightness Sliders
-            HStack(spacing: 12) {
-                sliderCard(icon: "speaker.wave.2.fill", value: Binding(
+            // System Volume
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Image(systemName: "speaker.wave.2.fill")
+                        .font(.system(size: 10))
+                        .opacity(0.4)
+                    Spacer()
+                    Text("\(Int(state.volume * 100))%")
+                        .font(.system(size: 8, weight: .black))
+                }
+                Slider(value: Binding(
                     get: { Float(state.volume) },
                     set: { state.setSystemVolume($0) }
-                ), label: "VOL")
-                
-                sliderCard(icon: "sun.max.fill", value: Binding(
-                    get: { state.systemBrightness },
-                    set: { state.setSystemBrightness($0) }
-                ), label: "BRILLO")
+                ), in: 0...1)
+                .accentColor(state.accentColor)
             }
+            .padding(14)
+            .background(Color.white.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 18))
         }
     }
     
-    func sliderCard(icon: String, value: Binding<Float>, label: String) -> some View {
-        VStack(spacing: 8) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.4))
-                Spacer()
-                Text("\(Int(value.wrappedValue * 100))%")
-                    .font(.system(size: 9, weight: .black))
-            }
-            
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.1))
-                        .frame(height: 6)
-                    
-                    Capsule()
-                        .fill(Color.white.opacity(0.8))
-                        .frame(width: CGFloat(value.wrappedValue) * geo.size.width, height: 6)
-                }
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { gesture in
-                            let percent = min(max(0, Float(gesture.location.x / geo.size.width)), 1)
-                            value.wrappedValue = percent
-                        }
-                )
-            }
-            .frame(height: 6)
-        }
-        .padding(14)
-        .background(Color.white.opacity(0.03))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.05), lineWidth: 1))
-    }
-    
-    // MARK: - Shelf Tab
-    var dashboardShelfView: some View {
-        VStack(spacing: 16) {
-            // Drop Zone
-            VStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(Color.blue.opacity(0.1))
-                        .frame(width: 56, height: 56)
-                    Image(systemName: "arrow.up.doc")
-                        .font(.system(size: 24))
-                        .foregroundColor(.blue)
-                }
-                
-                VStack(spacing: 4) {
-                    Text("SUELTA ARCHIVOS AQUÍ")
-                        .font(.system(size: 11, weight: .black))
-                        .foregroundColor(.white.opacity(0.4))
-                    Text("Multitarea rápida")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 40)
-            .background(
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .stroke(style: StrokeStyle(lineWidth: 2, dash: [8]))
-                    .foregroundColor(.white.opacity(0.1))
-            )
-            .contentShape(Rectangle())
-            
-            // Recent Files
-            if !state.clipboardHistory.isEmpty {
-                ForEach(state.clipboardHistory.prefix(3), id: \.self) { item in
-                    HStack {
-                        Image(systemName: "doc.text.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(.orange)
-                        Text(item.prefix(30))
-                            .font(.system(size: 10, weight: .bold))
-                            .lineLimit(1)
-                        Spacer()
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10))
-                            .foregroundColor(.white.opacity(0.3))
-                    }
-                    .padding(12)
-                    .background(Color.white.opacity(0.03))
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.05), lineWidth: 1))
-                }
-            }
-        }
-    }
     
     // MARK: - Focus Tab (Pomodoro)
     var dashboardFocusView: some View {
@@ -1900,7 +1812,7 @@ struct IslandView: View {
                 VStack(spacing: 2) {
                     Text(state.formatPomodoroTime())
                         .font(.system(size: 24, weight: .black, design: .rounded))
-                    Text("MINUTOS")
+                    Text(state.l("MINUTOS"))
                         .font(.system(size: 8, weight: .black))
                         .foregroundColor(.white.opacity(0.4))
                 }
@@ -1909,11 +1821,11 @@ struct IslandView: View {
             // Control Buttons
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("NOMBRE DE LA SESIÓN")
+                    Text(state.l("NOMBRE DE LA SESIÓN"))
                         .font(.system(size: 8, weight: .black))
                         .foregroundColor(.white.opacity(0.4))
                     
-                    TextField("Focus...", text: $state.pomodoroLabel)
+                    TextField(state.l("Focus..."), text: $state.pomodoroLabel)
                         .textFieldStyle(PlainTextFieldStyle())
                         .font(.system(size: 14, weight: .bold))
                         .padding(10)
@@ -1933,7 +1845,7 @@ struct IslandView: View {
                         }
                     }
                 }) {
-                    Text(state.isPomodoroRunning ? "PAUSAR" : "INICIAR")
+                    Text(state.isPomodoroRunning ? state.l("PAUSAR") : state.l("INICIAR"))
                         .font(.system(size: 10, weight: .black))
                         .foregroundColor(state.isPomodoroRunning ? .red : .black)
                         .padding(.horizontal, 24)
@@ -1961,7 +1873,7 @@ struct IslandView: View {
                     // Mode Selector for Configuration
                     HStack(spacing: 8) {
                         Button(action: { state.pomodoroMode = .work; state.pomodoroRemaining = state.workDuration }) {
-                            Text("TRABAJO")
+                            Text(state.l("TRABAJO"))
                                 .font(.system(size: 8, weight: .black))
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
@@ -1973,7 +1885,7 @@ struct IslandView: View {
                         .buttonStyle(.plain)
                         
                         Button(action: { state.pomodoroMode = .shortBreak; state.pomodoroRemaining = state.breakDuration }) {
-                            Text("DESCANSO")
+                            Text(state.l("DESCANSO"))
                                 .font(.system(size: 8, weight: .black))
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
@@ -2007,11 +1919,11 @@ struct IslandView: View {
                     // Custom Timer Slider
                     VStack(spacing: 8) {
                         HStack {
-                            Text("PERSONALIZADO:")
+                            Text(state.l("PERSONALIZADO:"))
                                 .font(.system(size: 8, weight: .black))
                                 .foregroundColor(.white.opacity(0.4))
                             Spacer()
-                            Text("\(Int(state.customTimerMinutes)) MINUTOS")
+                            Text("\(Int(state.customTimerMinutes)) \(state.l("MINUTOS"))")
                                 .font(.system(size: 10, weight: .bold))
                         }
                         .padding(.horizontal, 22)
@@ -2021,7 +1933,7 @@ struct IslandView: View {
                                 .accentColor(state.accentColor)
                             
                             Button(action: { state.setPomodoroDuration(Int(state.customTimerMinutes)) }) {
-                                Text("FIJAR")
+                                Text(state.l("FIJAR"))
                                     .font(.system(size: 9, weight: .black))
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
@@ -2040,9 +1952,9 @@ struct IslandView: View {
             HStack(spacing: 6) {
                 Image(systemName: "eye")
                     .font(.system(size: 10))
-                Text("BLOQUEO DE DISTRACCIONES:")
+                Text(state.l("BLOQUEO DE DISTRACCIONES:"))
                     .font(.system(size: 9, weight: .bold))
-                Text(state.isPomodoroRunning ? "ACTIVO" : "INACTIVO")
+                Text(state.isPomodoroRunning ? state.l("ACTIVO") : state.l("INACTIVO"))
                     .font(.system(size: 9, weight: .black))
                     .foregroundColor(state.isPomodoroRunning ? .green : .white.opacity(0.4))
             }
@@ -2081,7 +1993,7 @@ struct IslandView: View {
             Image(systemName: "wifi")
                 .font(.system(size: 18))
                 .foregroundColor(state.wifiSignal > -60 ? .green : (state.wifiSignal > -80 ? .yellow : .red))
-            Text(state.wifiSSID)
+            Text(state.l(state.wifiSSID))
                 .font(.system(size: 16, weight: .black))
             
             wifiTooltipIcon
@@ -2107,7 +2019,7 @@ struct IslandView: View {
             .overlay(
                 Group {
                     if showWifiTooltip {
-                        Text("Estos valores se leen directamente del hardware Wi-Fi (CoreWLAN) en tiempo real, sin realizar descargas.\n\n• Velocidad: Tasa de enlace (TX Rate).\n• Señal: Potencia (RSSI).")
+                        Text(state.l("WiFi Tooltip"))
                             .font(.system(size: 10, weight: .medium))
                             .multilineTextAlignment(.leading)
                             .lineLimit(nil)
@@ -2131,7 +2043,7 @@ struct IslandView: View {
         HStack(spacing: 20) {
             // Signal Stat
             VStack(alignment: .leading) {
-                Text("SEÑAL")
+                Text(state.l("SEÑAL"))
                     .font(.system(size: 8, weight: .black))
                     .opacity(0.4)
                 Text("\(state.wifiSignal) dBm")
@@ -2146,7 +2058,7 @@ struct IslandView: View {
             .overlay(
                 Group {
                     if showSignalTooltip {
-                        Text("dBm (decibelios-milivatio): mide la potencia de la señal recibida.\n\n• -30 a -60: Excelente\n• -60 a -75: Aceptable\n• -80 o menos: Mala")
+                        Text(state.l("Signal Tooltip"))
                             .font(.system(size: 10, weight: .medium))
                             .multilineTextAlignment(.leading)
                             .lineLimit(nil)
@@ -2167,7 +2079,7 @@ struct IslandView: View {
             
             // Speed Stat
             VStack(alignment: .leading) {
-                Text("VELOCIDAD")
+                Text(state.l("VELOCIDAD"))
                     .font(.system(size: 8, weight: .black))
                     .opacity(0.4)
                 Text("\(state.wifiSpeed) Mbps")
@@ -2182,7 +2094,7 @@ struct IslandView: View {
             .overlay(
                 Group {
                     if showSpeedTooltip {
-                        Text("Mbps (Megabits por segundo):\n\nEs la tasa de transferencia teórica (TX Rate) entre tu Mac y el Router, NO la velocidad de Internet.")
+                        Text(state.l("Speed Tooltip"))
                             .font(.system(size: 10, weight: .medium))
                             .multilineTextAlignment(.leading)
                             .lineLimit(nil)
@@ -2220,13 +2132,13 @@ struct IslandView: View {
     
     var bluetoothList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("DISPOSITIVOS BLUETOOTH")
+            Text(state.l("DISPOSITIVOS BLUETOOTH"))
                 .font(.system(size: 9, weight: .black))
                 .opacity(0.4)
                 .padding(.horizontal, 4)
             
             if state.bluetoothDevices.isEmpty {
-                Text("No hay dispositivos conectados")
+                Text(state.l("No hay dispositivos conectados"))
                     .font(.system(size: 12, weight: .medium))
                     .opacity(0.4)
                     .frame(maxWidth: .infinity, alignment: .center) // Force centering
@@ -2262,12 +2174,12 @@ struct IslandView: View {
     var dashboardClipboardView: some View {
         VStack(spacing: 16) {
             HStack {
-                Text("HISTORIAL DE PORTAPAPELES")
+                Text(state.l("HISTORIAL DE PORTAPAPELES"))
                     .font(.system(size: 9, weight: .black))
                     .opacity(0.4)
                 Spacer()
                 Button(action: { state.clipboardHistory.removeAll() }) {
-                    Text("LIMPIAR")
+                    Text(state.l("LIMPIAR"))
                         .font(.system(size: 8, weight: .black))
                         .foregroundColor(.red.opacity(0.6))
                 }
@@ -2279,7 +2191,7 @@ struct IslandView: View {
                     Image(systemName: "doc.on.clipboard")
                         .font(.system(size: 32))
                         .opacity(0.1)
-                    Text("Vacío")
+                    Text(state.l("Vacío"))
                         .font(.system(size: 10, weight: .bold))
                         .opacity(0.3)
                 }
@@ -2320,12 +2232,12 @@ struct IslandView: View {
         VStack(spacing: 12) {
             // Background Style
             HStack {
-                Text("Estilo")
+                Text(state.l("ESTILO"))
                     .font(.system(size: 12, weight: .bold))
                 Spacer()
                 Picker("", selection: $state.backgroundStyle) {
                     ForEach(BackgroundStyle.allCases, id: \.self) { style in
-                        Text(style.rawValue).tag(style)
+                        Text(state.l(style.rawValue)).tag(style)
                     }
                 }
                 .labelsHidden()
@@ -2335,10 +2247,28 @@ struct IslandView: View {
             .background(Color.white.opacity(0.03))
             .clipShape(RoundedRectangle(cornerRadius: 14))
             
+            // Language Selection
+            HStack {
+                Text(state.l("IDIOMA"))
+                    .font(.system(size: 12, weight: .bold))
+                Spacer()
+                Picker("", selection: $state.language) {
+                    ForEach(AppLanguage.allCases, id: \.self) { lang in
+                        Text(state.l(lang.rawValue)).tag(lang)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 120)
+            }
+            .padding(12)
+            .background(Color.white.opacity(0.03))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            
+            
             // Solid Background Color Picker (Visible only if style is solid)
             if state.backgroundStyle == .solid {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("COLOR DEL FONDO (SOLIDO)")
+                    Text(state.l("COLOR DEL FONDO (SOLIDO)"))
                         .font(.system(size: 9, weight: .black))
                         .opacity(0.4)
                     
@@ -2346,7 +2276,7 @@ struct IslandView: View {
                         ColorPicker("", selection: $state.islandColor)
                             .labelsHidden()
                         Spacer()
-                        Text("Personalizado")
+                        Text(state.l("Personalizado"))
                             .font(.system(size: 11, weight: .bold))
                             .opacity(0.6)
                     }
@@ -2359,7 +2289,7 @@ struct IslandView: View {
             
             // Accent Color
             VStack(alignment: .leading, spacing: 10) {
-                Text("COLOR DE ACENTO")
+                Text(state.l("COLOR DE ACENTO"))
                     .font(.system(size: 9, weight: .black))
                     .opacity(0.4)
                 
@@ -2367,7 +2297,7 @@ struct IslandView: View {
                     ColorPicker("", selection: $state.accentColor)
                         .labelsHidden()
                     Spacer()
-                    Text("Personalizado")
+                    Text(state.l("Personalizado"))
                         .font(.system(size: 11, weight: .bold))
                         .opacity(0.6)
                 }
@@ -2383,7 +2313,7 @@ struct IslandView: View {
                 HStack {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.red.opacity(0.6))
-                    Text("Cerrar Island")
+                    Text(state.l("Cerrar Island"))
                         .font(.system(size: 12, weight: .bold))
                     Spacer()
                 }
@@ -2459,7 +2389,7 @@ struct IslandView: View {
                 // Main Computer info
                 deviceRow(
                     name: "MacBook Pro",
-                    detail: "Sistema macOS",
+                    detail: state.l("Sistema macOS"),
                     icon: "laptopcomputer",
                     battery: state.batteryLevel,
                     isCharging: state.isCharging
@@ -2467,7 +2397,7 @@ struct IslandView: View {
                 
                 // Bluetooth Header
                 HStack {
-                    Text("BLUETOOTH")
+                    Text(state.l("BLUETOOTH"))
                         .font(.system(size: 10, weight: .black))
                         .opacity(0.3)
                     Spacer()
@@ -2494,7 +2424,7 @@ struct IslandView: View {
                             VStack(alignment: .leading, spacing: 0) {
                                 Text(device.name)
                                     .font(.system(size: 13, weight: .bold))
-                                Text("Conectado")
+                                Text(state.l("Conectado"))
                                     .font(.system(size: 10))
                                     .opacity(0.4)
                             }
@@ -2502,7 +2432,7 @@ struct IslandView: View {
                             Spacer()
                             
                             Button(action: { state.disconnectBluetoothDevice(address: device.id) }) {
-                                Text("Desconectar")
+                                Text(state.l("Desconectar"))
                                     .font(.system(size: 10, weight: .bold))
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 5)
@@ -2549,7 +2479,7 @@ struct IslandView: View {
                         Image(systemName: "headphones")
                             .font(.system(size: 20))
                             .foregroundColor(.white.opacity(0.1))
-                        Text("Buscando dispositivos...")
+                        Text(state.l("Buscando dispositivos..."))
                             .font(.system(size: 12, weight: .bold))
                             .opacity(0.2)
                         Spacer()
@@ -2572,7 +2502,7 @@ struct IslandView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         Text(state.wifiSSID)
                             .font(.system(size: 13, weight: .bold))
-                        Text("Wi-Fi")
+                        Text(state.l("Wi-Fi"))
                             .font(.system(size: 10))
                             .opacity(0.3)
                     }
@@ -2649,11 +2579,8 @@ struct IslandView: View {
                         notesWidget
                     } else if selected == "Settings" {
                         settingsWidget
-                    } else if selected == "Meeting" {
-                        meetingWidget
                     } else if selected == "Clipboard" {
                         clipboardWidget
-
                     } else if selected == "Calendar" {
                         calendarWidget
                     } else if selected == "Pomodoro" {
@@ -2670,7 +2597,7 @@ struct IslandView: View {
 
     func recentInfoWidget(for appName: String) -> some View {
         HStack {
-            Text("Información de \(appName)")
+            Text("\(state.l("Información de "))\(appName)")
                 .font(.system(size: 12, weight: .bold))
             Spacer()
             Image(systemName: "chevron.right").opacity(0.3)
@@ -2772,16 +2699,16 @@ struct IslandView: View {
 
     func getAppsForCategory(_ cat: String) -> [AppData] {
         switch cat {
-        case "apps":
+        case "Apps":
             return [
                 AppData(id: "Finder", name: "Finder", icon: "folder.fill", color: .orange, badge: "!"),
-                AppData(id: "Notes", name: "Notas", icon: "note.text", color: .yellow, badge: nil),
+                AppData(id: "Notes", name: state.l("Notas"), icon: "note.text", color: .yellow, badge: nil),
                 AppData(id: "Chrome", name: "Chrome", icon: "globe", color: .blue, badge: nil)
             ]
         case "Utilidades":
             return [
-                AppData(id: "Weather", name: "Clima", icon: "cloud.fill", color: .blue, badge: nil),
-                AppData(id: "Timer", name: "Timer", icon: "timer", color: .orange, badge: state.isTimerRunning ? "!" : nil)
+                AppData(id: "Weather", name: state.l("Clima"), icon: "cloud.fill", color: .blue, badge: nil),
+                AppData(id: "Timer", name: state.l("Timer"), icon: "timer", color: .orange, badge: state.isTimerRunning ? "!" : nil)
             ]
         default: return []
         }
@@ -3036,9 +2963,13 @@ struct IslandView: View {
                 }) {
                     VStack(spacing: 8) {
                         Image(systemName: categoryIcon(for: cat))
-                            .font(.system(size: 18, weight: state.activeCategory == cat ? .bold : .medium))
+                            .font(.system(size: 16, weight: state.activeCategory == cat ? .bold : .medium))
                             .foregroundColor(state.activeCategory == cat ? state.accentColor : .white.opacity(0.3))
-                            .frame(width: 40, height: 24)
+                            .frame(width: 40, height: 20)
+                        
+                        Text(state.l(cat))
+                            .font(.system(size: 7, weight: .black))
+                            .foregroundColor(state.activeCategory == cat ? state.accentColor : .white.opacity(0.3))
                         
                         // Small dot indicator instead of underline for icons
                         ZStack {
@@ -3066,10 +2997,11 @@ struct IslandView: View {
 
     func categoryIcon(for cat: String) -> String {
         switch cat {
+        case "Apps": return "square.grid.2x2.fill"
         case "Favoritos": return "star.fill"
         case "Recientes": return "clock.fill"
         case "Dispositivos": return "macbook.and.iphone"
-        case "Utilidades": return "square.grid.2x2.fill"
+        case "Utilidades": return "briefcase.fill"
         case "Configuración": return "gearshape.fill"
         default: return "circle"
         }
@@ -3129,7 +3061,7 @@ struct IslandView: View {
         VStack(spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("TEMPORIZADOR")
+                    Text(state.l("TEMPORIZADOR"))
                         .font(.system(size: 9, weight: .black))
                         .opacity(0.4)
                     Text(formatTime(state.timerRemaining))
@@ -3200,7 +3132,7 @@ struct IslandView: View {
     var notesWidget: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("NOTAS RÁPIDAS")
+                Text(state.l("NOTAS RÁPIDAS"))
                     .font(.system(size: 9, weight: .black))
                     .opacity(0.4)
                 
@@ -3243,7 +3175,7 @@ struct IslandView: View {
                     }
                     
                     if state.notes.count > 2 {
-                        Text("+ \(state.notes.count - 2) más...")
+                        Text("+ \(state.notes.count - 2)\(state.l(" más..."))")
                             .font(.system(size: 10))
                             .opacity(0.4)
                     }
@@ -3255,102 +3187,67 @@ struct IslandView: View {
         .cornerRadius(22)
     }
     
-    var meetingHeader: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("MODO REUNIÓN")
-                    .font(.system(size: 9, weight: .black)).opacity(0.4)
-                Text("CONTROLES DE LLAMADA")
-                    .font(.system(size: 14, weight: .black, design: .rounded))
-            }
-            Spacer()
-            Image(systemName: "video.fill")
-                .font(.system(size: 20))
-                .foregroundColor(.blue)
-                .padding(10)
-                .background(Color.blue.opacity(0.1))
-                .clipShape(Circle())
-        }
-    }
 
-    var meetingControls: some View {
-        HStack(spacing: 12) {
-            // Mic Button
-            Button(action: { state.toggleMic() }) {
-                VStack(spacing: 8) {
-                    Image(systemName: state.isMicMuted ? "mic.slash.fill" : "mic.fill")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(state.isMicMuted ? .red : .green)
-                    Text(state.isMicMuted ? "Muteado" : "Activo")
-                        .font(.system(size: 10, weight: .black))
-                        .opacity(0.6)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(state.isMicMuted ? Color.red.opacity(0.1) : Color.green.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-                .overlay(RoundedRectangle(cornerRadius: 18).stroke(state.isMicMuted ? Color.red.opacity(0.2) : Color.green.opacity(0.2), lineWidth: 1))
-            }
-            .buttonStyle(.plain)
+    var spotifyInstallOverlay: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "music.note")
+                .font(.system(size: 40))
+                .foregroundColor(.green)
             
-            // DND Button
-            Button(action: { state.toggleDND() }) {
-                VStack(spacing: 8) {
-                    Image(systemName: state.isDNDActive ? "moon.fill" : "moon")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(state.isDNDActive ? .purple : .white.opacity(0.5))
-                    Text(state.isDNDActive ? "No Molestar" : "Libre")
-                        .font(.system(size: 10, weight: .black))
-                        .opacity(0.6)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(state.isDNDActive ? Color.purple.opacity(0.1) : Color.white.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-                .overlay(RoundedRectangle(cornerRadius: 18).stroke(state.isDNDActive ? Color.purple.opacity(0.2) : Color.clear, lineWidth: 1))
+            VStack(spacing: 8) {
+                Text(state.l("Spotify no instalado"))
+                    .font(.system(size: 16, weight: .bold))
+                Text(state.l("Parece que no tienes Spotify. ¿Quieres instalarlo?"))
+                    .font(.system(size: 13))
+                    .multilineTextAlignment(.center)
+                    .opacity(0.6)
             }
-            .buttonStyle(.plain)
-        }
-    }
-
-    var meetingQuickLaunch: some View {
-        HStack(spacing: 10) {
-            Text("LANZAR:")
-                .font(.system(size: 8, weight: .bold)).opacity(0.3)
+            .padding(.horizontal)
             
-            ForEach(["FaceTime", "Zoom", "Slack"], id: \.self) { app in
-                Button(action: { state.launchApp(named: app) }) {
-                    Text(app)
-                        .font(.system(size: 9, weight: .black))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.05))
-                        .cornerRadius(8)
+            VStack(spacing: 10) {
+                Button(action: { state.installSpotify(via: "brew") }) {
+                    Text(state.l("Instalar por Brew"))
+                        .font(.system(size: 12, weight: .bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.green)
+                        .foregroundColor(.black)
+                        .cornerRadius(12)
                 }
                 .buttonStyle(.plain)
+                
+                Button(action: { state.installSpotify(via: "web") }) {
+                    Text(state.l("Ir a la Web"))
+                        .font(.system(size: 12, weight: .bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+                
+                Button(action: { state.showSpotifyInstallPrompt = false }) {
+                    Text(state.l("Cancelar"))
+                        .font(.system(size: 12, weight: .bold))
+                        .opacity(0.5)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 5)
             }
+            .padding(.horizontal, 40)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow))
+        .cornerRadius(40)
     }
 
-    var meetingWidget: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            meetingHeader
-            meetingControls
-            meetingQuickLaunch
-        }
-        .padding(20)
-        .background(Color.white.opacity(0.02))
-        .clipShape(RoundedRectangle(cornerRadius: 25))
-        .overlay(RoundedRectangle(cornerRadius: 25).stroke(Color.white.opacity(0.05), lineWidth: 1))
-    }
-    
     var clipboardWidget: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("PORTAPAPELES")
+            Text(state.l("PORTAPAPELES"))
                 .font(.system(size: 9, weight: .black)).opacity(0.4)
             
             if state.clipboardHistory.isEmpty {
-                Text("Copia algo para empezar...")
+                Text(state.l("Copia algo para empezar..."))
                     .font(.system(size: 12, weight: .medium))
                     .opacity(0.2)
                     .padding(.vertical, 20)
@@ -3377,15 +3274,13 @@ struct IslandView: View {
         }
     }
     
-
-    
     var calendarWidget: some View {
         VStack(alignment: .leading, spacing: 15) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("PRÓXIMO EVENTO")
+                    Text(state.l("PRÓXIMO EVENTO"))
                         .font(.system(size: 9, weight: .black)).opacity(0.4)
-                    Text("TU AGENDA")
+                    Text(state.l("TU AGENDA"))
                         .font(.system(size: 14, weight: .black, design: .rounded))
                 }
                 Spacer()
@@ -3423,7 +3318,7 @@ struct IslandView: View {
                         Button(action: { NSWorkspace.shared.open(url) }) {
                             HStack {
                                 Image(systemName: "video.fill")
-                                Text("UNIRSE A REUNIÓN")
+                                Text(state.l("UNIRSE"))
                             }
                             .font(.system(size: 11, weight: .black))
                             .frame(maxWidth: .infinity)
@@ -3443,7 +3338,7 @@ struct IslandView: View {
                     Image(systemName: "calendar.badge.clock")
                         .font(.system(size: 24))
                         .opacity(0.2)
-                    Text("No hay eventos próximos")
+                    Text(state.l("No hay eventos próximos"))
                         .font(.system(size: 13, weight: .bold))
                         .opacity(0.3)
                     Spacer()
@@ -3458,9 +3353,9 @@ struct IslandView: View {
     var pomodoroHeader: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("POMODORO")
+                Text(state.l("POMODORO"))
                     .font(.system(size: 9, weight: .black)).opacity(0.4)
-                Text(state.pomodoroMode == .work ? "ENFOQUE" : "DESCANSO")
+                Text(state.l(state.pomodoroMode == .work ? "ENFOQUE" : "DESCANSO"))
                     .font(.system(size: 14, weight: .black, design: .rounded))
                     .foregroundColor(state.pomodoroMode == .work ? .red : .green)
             }
@@ -3479,7 +3374,7 @@ struct IslandView: View {
             }) {
                 HStack {
                     Image(systemName: state.isPomodoroRunning ? "pause.fill" : "play.fill")
-                    Text(state.isPomodoroRunning ? "PAUSAR" : "INICIAR")
+                    Text(state.isPomodoroRunning ? state.l("PAUSAR") : state.l("INICIAR"))
                 }
                 .font(.system(size: 12, weight: .black))
                 .frame(maxWidth: .infinity)
@@ -3534,7 +3429,7 @@ struct IslandView: View {
     
     var islandColorPicker: some View {
         HStack {
-            Label("Color Fondo", systemImage: "paintpalette.fill")
+            Label(state.l("Color Fondo"), systemImage: "paintpalette.fill")
                 .font(.system(size: 12, weight: .bold))
             Spacer()
             ColorPicker("", selection: $state.islandColor)
@@ -3576,7 +3471,7 @@ struct IslandView: View {
 
     var settingsWidget: some View {
         VStack(alignment: .leading, spacing: 15) {
-            Text("CONFIGURACIÓN DE LA ISLA")
+            Text(state.l("CONFIGURACIÓN DE LA ISLA"))
                 .font(.system(size: 9, weight: .black))
                 .opacity(0.4)
             
@@ -3591,7 +3486,7 @@ struct IslandView: View {
                     get: { state.showClock },
                     set: { state.showClock = $0 }
                 )) {
-                    Text("Mostrar Reloj")
+                    Text(state.l("Mostrar Reloj"))
                         .font(.system(size: 12, weight: .bold))
                 }
                 .toggleStyle(SwitchToggleStyle(tint: state.accentColor))
@@ -3670,28 +3565,6 @@ func getIcon(for appName: String) -> NSImage? {
     return nil
 }
 
-struct MessageRow: View {
-    let icon: String
-    let color: Color
-    let text: String
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(color.opacity(0.2)).frame(width: 30, height: 30)
-                Image(systemName: icon).font(.system(size: 12)).foregroundColor(color)
-            }
-            Text(text)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .lineLimit(1)
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(12)
-    }
-}
 
 extension Color {
     static let sky = Color(red: 0.35, green: 0.75, blue: 1.0)
