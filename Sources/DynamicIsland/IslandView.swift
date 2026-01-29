@@ -115,44 +115,67 @@ struct IslandView: View {
     // MARK: - Subviews
     
     var compactContent: some View {
-        HStack(spacing: 8) {
-            if state.isMicMuted {
-                Image(systemName: "mic.slash.fill")
-                    .font(.system(size: 10))
-                    .foregroundColor(.red)
+        HStack {
+            // Left: Logo
+            if let icon = timerIcon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: 18, height: 18)
+            } else {
+                Image(systemName: "hand.tap.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(state.accentColor)
             }
             
-            // Show Pomodoro timer when focus is active, otherwise show clock
-            if state.isPomodoroRunning {
-                HStack(spacing: 4) {
-                    if let icon = timerIcon {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .frame(width: 16, height: 16)
-                    }
-                    Text(state.formatPomodoroTime())
-                        .font(.system(size: 12, weight: .black, design: .monospaced))
-                        .foregroundColor(.orange)
-                }
-            } else if state.showClock {
-                Text(Date(), style: .time)
-                    .font(.system(size: 12, weight: .black, design: .rounded))
-                    .foregroundColor(.white)
-            } else {
-                // Minimalist status dots
-                Circle()
-                    .fill(state.isMicMuted ? Color.orange : Color.green.opacity(0.8))
-                    .frame(width: 4, height: 4)
+            Spacer()
+            
+            // Center: Date & Time in a clean stack
+            VStack(spacing: 0) {
+                Text(state.isPomodoroRunning ? state.formatPomodoroTime() : formattedTime)
+                    .font(.system(size: 13, weight: .black, design: .monospaced))
+                    .foregroundColor(state.isPomodoroRunning ? .orange : .white)
+                
+                Text(formattedShortDate)
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundColor(.white.opacity(0.6))
             }
+            
+            Spacer()
+            
+            // Right: Status info
+            HStack(spacing: 8) {
+                if state.isMicMuted {
+                    Image(systemName: "mic.slash.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(.red)
+                }
+                
+                Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.100")
+                    .font(.system(size: 14))
+                    .foregroundColor(state.batteryLevel < 20 ? .red : .green)
+            }
+            .frame(width: 40)
         }
+        .padding(.horizontal, 15)
+        .padding(.top, state.hasNotch ? state.notchHeight : 5) // Clear the physical notch
+        .frame(maxHeight: .infinity)
         .contentShape(Rectangle())
         .onTapGesture {
-            if !state.isExpanded {
-                withAnimation(.spring()) {
-                    state.toggleExpand()
-                }
-            }
+            state.toggleExpand()
         }
+    }
+    
+    private var formattedTime: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: Date())
+    }
+    
+    private var formattedShortDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "E d 'de' MMM"
+        formatter.locale = Locale(identifier: "es_ES")
+        return formatter.string(from: Date()).uppercased()
     }
     
     var compactProductivityContent: some View {

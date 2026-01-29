@@ -89,6 +89,11 @@ class IslandState: ObservableObject {
     @Published var headphoneBattery: Int? = nil
     @Published var bluetoothDevices: [BluetoothDevice] = []
     
+    // Notch dimensions
+    @Published var notchWidth: CGFloat = 209 // Default MBP 14 size
+    @Published var notchHeight: CGFloat = 38
+    @Published var hasNotch: Bool = false
+    
     // Battery State
     @Published var batteryLevel: Int = 100
     @Published var isCharging: Bool = false
@@ -1053,22 +1058,30 @@ class IslandState: ObservableObject {
         if isExpanded {
             switch mode {
             case .compact: return 500
-            case .music: return 400
+            case .music: return 450
             case .timer: return 350
             case .notes: return 400
             case .productivity: return 500
             default: return 320
             }
         } else {
+            // Adaptive compact width based on notch
+            let baseWidth: CGFloat
+            if hasNotch {
+                baseWidth = notchWidth
+            } else {
+                baseWidth = 180
+            }
+            
             switch mode {
-            case .idle: return 200 // Invisible hover area
-            case .compact: return 180 // Smaller pill shape like iPhone
-            case .music: return 200
+            case .idle: return hasNotch ? notchWidth : 180
+            case .compact: return baseWidth
+            case .music: return baseWidth + 40
             case .battery: return 120
             case .volume: return 120
-            case .timer: return 140
-            case .notes: return 140
-            case .productivity: return 180
+            case .timer: return 180
+            case .notes: return 160
+            case .productivity: return baseWidth
             }
         }
     }
@@ -1086,14 +1099,8 @@ class IslandState: ObservableObject {
             default: return 800
             }
         } else {
-            switch mode {
-            case .idle: return 37 // Small pill in notch
-            case .compact: return 37 // Small pill like iPhone Dynamic Island
-            case .music: return 37
-            case .battery: return 37
-            case .volume: return 37
-            case .timer, .notes, .productivity: return 37
-            }
+            // Height covers the notch AND the space below it (notchHeight + ~37px)
+            return hasNotch ? notchHeight + 37 : 45
         }
     }
     func toggleWidget(_ id: String) {

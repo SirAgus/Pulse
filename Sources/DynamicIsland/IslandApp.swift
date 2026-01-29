@@ -204,26 +204,50 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let screen = NSScreen.main ?? NSScreen.screens.first
         guard let targetScreen = screen else { return }
         
-        let screenFrame = targetScreen.frame
-        let visibleFrame = targetScreen.visibleFrame
         let state = IslandState.shared
+        let notchInfo = NotchDetector.notchInfo(for: targetScreen)
+        
+        // Update state with notch info for adaptive UI
+        if notchInfo.hasNotch, let rect = notchInfo.notchRect {
+            state.hasNotch = true
+            state.notchWidth = rect.width
+            state.notchHeight = rect.height
+        } else {
+            state.hasNotch = false
+        }
         
         let width = state.widthForMode(state.mode, isExpanded: state.isExpanded)
         let height = state.heightForMode(state.mode, isExpanded: state.isExpanded)
         
-        // Center horizontally on screen
-        let x = screenFrame.origin.x + (screenFrame.width - width) / 2
-        
-        // Calculate Y position
+        let x: CGFloat
         let y: CGFloat
-        if state.isExpanded {
-            // When expanded, position below the notch/menu bar
-            y = visibleFrame.maxY - height
+        
+        if let notchRect = notchInfo.notchRect {
+            // Center horizontally relative to the notch
+            x = notchRect.midX - (width / 2)
+            
+            if state.isExpanded {
+                // When expanded, position just below the notch
+                y = notchRect.minY - height
+            } else {
+                // Stick to the absolute top of the screen
+                let screenFrame = targetScreen.frame
+                y = screenFrame.maxY - height
+            }
+            print("🏝️ Notch detected at \(notchRect), positioning island at (\(x), \(y))")
         } else {
-            // When compact, position IN the notch area (very top of screen)
-            // screenFrame.maxY is the absolute top, subtract small offset to center in notch
-            let notchOffset: CGFloat = 5 // Small margin from absolute top
-            y = screenFrame.maxY - height - notchOffset
+            // Fallback for screens without notch
+            let screenFrame = targetScreen.frame
+            let visibleFrame = targetScreen.visibleFrame
+            
+            x = screenFrame.origin.x + (screenFrame.width - width) / 2
+            
+            if state.isExpanded {
+                y = visibleFrame.maxY - height
+            } else {
+                y = screenFrame.maxY - height
+            }
+            print("🏝️ No notch detected, positioning island at top center (\(x), \(y))")
         }
         
         window.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true, animate: false)
