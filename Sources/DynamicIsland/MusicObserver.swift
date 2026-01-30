@@ -88,9 +88,33 @@ class MusicObserver {
             }
         } else if appName == "Music" {
             guard isMusicRunning() else { return }
-            // Apple Music artwork via script is complex (returns data), but let's try a temp file approach or raw hex
-            // Since executeAppleScript returns string, getting raw data is hard here.
-            // As a fallback for Music, we'll use the app icon which is already handled in View.
+            
+            // Apple Music artwork extraction via temporary file
+            let script = """
+            try
+                tell application "Music"
+                    if exists artwork 1 of current track then
+                        set art to raw data of artwork 1 of current track
+                        set tempPath to POSIX path of ((path to temporary items as string) & "pulse_artwork.tmp")
+                        set fileReference to open for access POSIX file tempPath with write permission
+                        set eof fileReference to 0
+                        write art to fileReference
+                        close access fileReference
+                        return tempPath
+                    end if
+                end tell
+            on error
+                return "error"
+            end try
+            """
+            
+            DispatchQueue.global(qos: .background).async {
+                if let path = IslandState.shared.executeAppleScript(script), path != "error", !path.isEmpty {
+                    if let img = NSImage(contentsOfFile: path) {
+                        DispatchQueue.main.async { IslandState.shared.trackArtwork = img }
+                    }
+                }
+            }
         }
     }
     

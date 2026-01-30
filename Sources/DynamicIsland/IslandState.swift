@@ -124,9 +124,11 @@ class IslandState: ObservableObject {
     @Published var wspBadge: String = ""
     @Published var slackBadge: String = ""
     // Categories and App State
-    @Published var activeCategory: String = "Apps" {
+    @Published var activeCategory: String = "apps" {
         didSet {
+            print("📁 IslandState: activeCategory changed to '\(activeCategory)'")
             selectedApp = nil
+            editingNoteIndex = nil
         }
     }
     let categories = ["Apps", "Favoritos", "Recientes", "Dispositivos", "Utilidades", "Configuración"]
@@ -655,6 +657,7 @@ class IslandState: ObservableObject {
     }
     
     func openApp(named: String) {
+        print("🚀 IslandState: openApp requested for '\(named)'")
         if named == "Timer" {
             setMode(.timer)
             isExpanded = true
@@ -674,9 +677,10 @@ class IslandState: ObservableObject {
         if ["Meeting", "Clipboard", "Calendar", "Pomodoro"].contains(named) {
             withAnimation(.spring()) {
                 selectedApp = named
-                isExpanded = true // Force expand to show contextual widget
-                // Update active category if needed
-                if ["Meeting", "Clipboard", "Pomodoro", "Calendar"].contains(named) { activeCategory = "Favoritos" }
+                isExpanded = true 
+                if named == "Clipboard" { activeCategory = "clipboard" }
+                if named == "Pomodoro" { activeCategory = "focus" }
+                if named == "Calendar" { activeCategory = "widgets" }
             }
             return
         }
@@ -899,6 +903,7 @@ class IslandState: ObservableObject {
     }
 
     func launchApp(named: String) {
+        print("📲 IslandState: launchApp called for '\(named)'")
         let appName: String = {
             switch named {
             case "Wsp": return "WhatsApp"

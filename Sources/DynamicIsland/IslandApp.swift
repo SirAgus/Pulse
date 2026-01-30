@@ -206,6 +206,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in self?.handleStateChange() }
             .store(in: &cancellables)
             
+        IslandState.shared.$activeCategory
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.handleStateChange() }
+            .store(in: &cancellables)
+            
         // Force focus when entering edit mode (Notes)
         IslandState.shared.$editingNoteIndex
             .receive(on: RunLoop.main)
@@ -312,6 +317,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             print("🏝️ No notch detected, positioning island at top center (\(x), \(y))")
         }
         
-        window.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true, animate: false)
+        let newFrame = NSRect(x: x, y: y, width: width, height: height)
+        if window.frame != newFrame {
+            window.setFrame(newFrame, display: true, animate: false)
+        }
     }
 }

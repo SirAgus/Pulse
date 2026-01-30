@@ -14,7 +14,7 @@ struct IslandView: View {
             return NSImage(contentsOfFile: path)
         }
         // Fallback for development (swift run)
-        let devPath = "/Users/agus/Documents/dynamicIsland/Resources/timer_icon.png"
+        let devPath = "/Users/agus/Documents/Pulse/Resources/timer_icon.png"
         return NSImage(contentsOfFile: devPath)
     }
 
@@ -759,6 +759,7 @@ struct IslandView: View {
         return HStack(spacing: 6) {
             ForEach(tabs, id: \.2) { tab in
                 Button(action: {
+                    print("🔘 Tab clicked: \(tab.2)")
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         state.activeCategory = tab.2
                     }
@@ -2698,19 +2699,24 @@ struct IslandView: View {
     
 
     func getAppsForCategory(_ cat: String) -> [AppData] {
+        print("📁 IslandView: getAppsForCategory called with '\(cat)'")
         switch cat {
-        case "Apps":
-            return [
+        case "apps", "Apps":
+            let apps = [
                 AppData(id: "Finder", name: "Finder", icon: "folder.fill", color: .orange, badge: "!"),
                 AppData(id: "Notes", name: state.l("Notas"), icon: "note.text", color: .yellow, badge: nil),
                 AppData(id: "Chrome", name: "Chrome", icon: "globe", color: .blue, badge: nil)
             ]
-        case "Utilidades":
+            print("   - Returning \(apps.count) apps")
+            return apps
+        case "widgets", "Utilidades":
             return [
                 AppData(id: "Weather", name: state.l("Clima"), icon: "cloud.fill", color: .blue, badge: nil),
                 AppData(id: "Timer", name: state.l("Timer"), icon: "timer", color: .orange, badge: state.isTimerRunning ? "!" : nil)
             ]
-        default: return []
+        default: 
+            print("   - No specific apps for category: \(cat)")
+            return []
         }
     }
 
