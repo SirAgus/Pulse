@@ -811,109 +811,100 @@ struct IslandView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: state.activeCategory)
-        .onAppear {
-            // Ensure window becomes key when interacting if it wasn't
-            if let window = NSApp.windows.first(where: { $0 is IslandWindow }) {
-                window.makeKeyAndOrderFront(nil)
-                NSApp.activate(ignoringOtherApps: true)
-            }
-        }
     }
     
     // MARK: - Apps Tab
     var dashboardAppsView: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 28) {
-                // Apps Grid
-                VStack(alignment: .leading, spacing: 15) {
-                    Text(state.l(state.activeCategory.uppercased()))
-                        .font(.system(size: 9, weight: .black))
-                        .foregroundColor(.white.opacity(0.3))
-                        .padding(.horizontal, 4)
-                    
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
-                        ForEach(getAppsForCategory(state.activeCategory), id: \.id) { app in
-                            VStack(spacing: 10) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                        .fill(Color.white.opacity(0.06))
-                                        .frame(width: 52, height: 52)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                                .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                                        )
-                                    
-                                    Image(systemName: app.icon)
-                                        .font(.system(size: 22))
-                                        .foregroundColor(app.color)
-                                    
-                                    if let badge = app.badge, !badge.isEmpty {
-                                        Text(badge)
-                                            .font(.system(size: 9, weight: .black))
-                                            .foregroundColor(.white)
-                                            .frame(width: 18, height: 18)
-                                            .background(Color.red)
-                                            .clipShape(Circle())
-                                            .offset(x: 20, y: -20)
-                                    }
-                                }
+        VStack(spacing: 28) {
+            // Apps Grid
+            VStack(alignment: .leading, spacing: 15) {
+                Text(state.l(state.activeCategory.uppercased()))
+                    .font(.system(size: 9, weight: .black))
+                    .foregroundColor(.white.opacity(0.3))
+                    .padding(.horizontal, 4)
+                
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+                    ForEach(getAppsForCategory(state.activeCategory), id: \.id) { app in
+                        VStack(spacing: 10) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(Color.white.opacity(0.06))
+                                    .frame(width: 52, height: 52)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                                    )
                                 
-                                Text(app.name)
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundColor(.white.opacity(0.4))
+                                Image(systemName: app.icon)
+                                    .font(.system(size: 22))
+                                    .foregroundColor(app.color)
+                                
+                                if let badge = app.badge, !badge.isEmpty {
+                                    Text(badge)
+                                        .font(.system(size: 9, weight: .black))
+                                        .foregroundColor(.white)
+                                        .frame(width: 18, height: 18)
+                                        .background(Color.red)
+                                        .clipShape(Circle())
+                                        .offset(x: 20, y: -20)
+                                }
                             }
-                            .onTapGesture {
-                                state.openApp(named: app.id)
-                            }
+                            
+                            Text(app.name)
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(.white.opacity(0.4))
                         }
-                    }
-                }
-
-                // Header with Widget Adder
-                HStack {
-                    Text(state.l("WIDGETS DEL SISTEMA"))
-                        .font(.system(size: 9, weight: .black))
-                        .foregroundColor(.white.opacity(0.3))
-                    Spacer()
-                    Button(action: { withAnimation(.spring()) { state.showWidgetPicker.toggle() } }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "plus.circle.fill")
-                            Text(state.showWidgetPicker ? state.l("LISTO") : state.l("AÑADIR"))
-                        }
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(state.accentColor)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(state.accentColor.opacity(0.1))
-                        .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 4)
-                
-                if state.showWidgetPicker {
-                    widgetSelectionPicker
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-                
-                // Dynamic Widgets Area
-                VStack(spacing: 20) {
-                    ForEach(state.pinnedWidgets, id: \.self) { widgetId in
-                        switch widgetId {
-                        case "performance":
-                            performanceBentoWidget
-                        case "alarm":
-                            alarmCarouselWidget
-                        case "pomodoro":
-                            pomodoroSquareWidget
-                        default:
-                            EmptyView()
+                        .onTapGesture {
+                            state.openApp(named: app.id)
                         }
                     }
                 }
             }
-            .padding(.top, 5)
+
+            // Header with Widget Adder
+            HStack {
+                Text(state.l("WIDGETS DEL SISTEMA"))
+                    .font(.system(size: 9, weight: .black))
+                    .foregroundColor(.white.opacity(0.3))
+                Spacer()
+                Button(action: { withAnimation(.spring()) { state.showWidgetPicker.toggle() } }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus.circle.fill")
+                        Text(state.showWidgetPicker ? state.l("LISTO") : state.l("AÑADIR"))
+                    }
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(state.accentColor)
+                    .padding(.horizontal, 10 )
+                    .padding(.vertical, 5)
+                    .background(state.accentColor.opacity(0.1))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 4)
+            
+            if state.showWidgetPicker {
+                widgetSelectionPicker
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            
+            // Dynamic Widgets Area
+            VStack(spacing: 20) {
+                ForEach(state.pinnedWidgets, id: \.self) { widgetId in
+                    switch widgetId {
+                    case "performance":
+                        performanceBentoWidget
+                    case "alarm":
+                        alarmCarouselWidget
+                    case "pomodoro":
+                        pomodoroSquareWidget
+                    default:
+                        EmptyView()
+                    }
+                }
+            }
         }
+        .padding(.top, 5)
     }
     
 
@@ -922,11 +913,13 @@ struct IslandView: View {
     // Weather removed
     
     var performanceBentoWidget: some View {
-        HStack(spacing: 12) {
-            systemWidget(title: state.l("CPU"), value: "\(Int(state.cpuUsage))%", icon: "cpu", color: .green, progress: state.cpuUsage/100)
-            systemWidget(title: state.l("RAM"), value: "\(Int(state.ramUsage))%", icon: "memorychip", color: .blue, progress: state.ramUsage/100)
-            systemWidget(title: state.l("TEMP"), value: "\(Int(state.systemTemp))°C", icon: "thermometer", color: .orange, progress: (state.systemTemp - 30)/70)
-            systemWidget(title: state.l("SSD"), value: state.diskFree, icon: "internaldrive.fill", color: .purple, progress: state.diskUsedPercentage)
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                systemWidget(title: state.l("CPU"), value: "\(Int(state.cpuUsage))%", icon: "cpu", color: .green, progress: state.cpuUsage/100)
+                systemWidget(title: state.l("RAM"), value: "\(Int(state.ramUsage))%", icon: "memorychip", color: .blue, progress: state.ramUsage/100)
+                systemWidget(title: state.l("TEMP"), value: "\(Int(state.systemTemp))°C", icon: "thermometer", color: .orange, progress: (state.systemTemp - 30)/70)
+                systemWidget(title: state.l("SSD"), value: state.diskFree, icon: "internaldrive.fill", color: .purple, progress: state.diskUsedPercentage)
+            }
         }
     }
 
@@ -1108,6 +1101,8 @@ struct IslandView: View {
     }
     
     
+
+
     var widgetSelectionPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
@@ -1180,14 +1175,13 @@ struct IslandView: View {
             Text(value)
                 .font(.system(size: 14, weight: .black))
             
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.white.opacity(0.1))
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(color)
-                        .frame(width: geo.size.width * progress)
-                }
+            // Standard Progress Bar without GeometryReader recursion
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.white.opacity(0.1))
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(color)
+                    .frame(width: max(0, min(1.0, progress)) * (100 - 24)) // Fixed relative width for performance
             }
             .frame(height: 3)
         }
@@ -1212,63 +1206,67 @@ struct IslandView: View {
             }
             
             // Camera Preview Widget
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Image(systemName: "camera.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(state.accentColor)
-                    Text(state.l("VISTA PREVIA DE CÁMARA"))
-                        .font(.system(size: 9, weight: .black))
-                    Spacer()
-                    
-                    // ON/OFF Button
-                    Button(action: { withAnimation { state.showCameraPreview.toggle() } }) {
-                        Text(state.showCameraPreview ? "ON" : "OFF")
-                            .font(.system(size: 8, weight: .black))
-                            .foregroundColor(state.showCameraPreview ? .green : .white.opacity(0.4))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(Color.white.opacity(0.1))
-                            .cornerRadius(4)
+            if state.hasCamera {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(state.accentColor)
+                        Text(state.l("VISTA PREVIA DE CÁMARA"))
+                            .font(.system(size: 9, weight: .black))
+                        Spacer()
+                        
+                        // ON/OFF Button
+                        Button(action: { withAnimation { state.showCameraPreview.toggle() } }) {
+                            Text(state.showCameraPreview ? "ON" : "OFF")
+                                .font(.system(size: 8, weight: .black))
+                                .foregroundColor(state.showCameraPreview ? .green : .white.opacity(0.4))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Color.white.opacity(0.1))
+                                .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Circle()
+                            .fill(state.showCameraPreview ? Color.green : Color.red)
+                            .frame(width: 6, height: 6)
+                            .shadow(color: state.showCameraPreview ? .green : .red, radius: 4)
                     }
-                    .buttonStyle(.plain)
+                    .padding(.horizontal, 4)
                     
-                    Circle()
-                        .fill(state.showCameraPreview ? Color.green : Color.red)
-                        .frame(width: 6, height: 6)
-                        .shadow(color: state.showCameraPreview ? .green : .red, radius: 4)
-                }
-                .padding(.horizontal, 4)
-                
-                ZStack {
-                    if state.showCameraPreview {
-                        CameraPreview()
-                    } else {
-                        Rectangle()
-                            .fill(Color.black)
-                            .overlay(
-                                VStack(spacing: 8) {
-                                    Image(systemName: "video.slash.fill")
-                                        .font(.system(size: 24))
-                                        .opacity(0.3)
-                                    Text(state.l("Cámara Apagada"))
-                                        .font(.system(size: 10, weight: .bold))
-                                        .opacity(0.4)
-                                }
-                            )
+                    ZStack {
+                        if state.showCameraPreview {
+                            CameraPreview()
+                        } else {
+                            Rectangle()
+                                .fill(Color.black)
+                                .overlay(
+                                    VStack(spacing: 8) {
+                                        Image(systemName: "video.slash.fill")
+                                            .font(.system(size: 24))
+                                            .opacity(0.3)
+                                        Text(state.l("Cámara Apagada"))
+                                            .font(.system(size: 10, weight: .bold))
+                                            .opacity(0.4)
+                                    }
+                                )
+                        }
                     }
+                    .frame(height: 140)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.1), lineWidth: 1))
                 }
-                .frame(height: 140)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                .padding(12)
+                .background(Color.white.opacity(0.03))
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                )
             }
-            .padding(12)
-            .background(Color.white.opacity(0.03))
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
-            )
+            
+
             
             // Alarm Widget
             alarmWidget

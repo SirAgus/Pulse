@@ -6,6 +6,7 @@ import IOBluetooth
 import CoreLocation
 import EventKit
 import IOKit
+import AVFoundation
 
 struct NoteItem: Identifiable, Equatable {
     let id: String
@@ -46,6 +47,75 @@ class IslandState: ObservableObject {
     
     @Published var mode: IslandMode = .compact
     @Published var isExpanded: Bool = false
+    
+    // Shared Formatters
+    private static let rpmFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = "."
+        return formatter
+    }()
+    
+    init() {
+        checkHardwareCapabilities()
+        loadSettings()
+        startMockUpdates()
+        refreshCalendar()
+        refreshVolume()
+        refreshNotes()
+        refreshBluetoothDevices()
+        requestLocationPermission()
+        
+        // Fast timer for clipboard, music and pomodoro
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            self.refreshClipboard()
+            self.updatePomodoro()
+            self.checkAlarms()
+            
+            // Song progress (if simulated)
+            if self.isPlaying && self.trackPosition < self.trackDuration {
+                self.trackPosition += 1
+            }
+            
+            // Countdown Timer
+            if self.isTimerRunning && self.timerRemaining > 0 {
+                self.timerRemaining -= 1
+                if self.timerRemaining == 0 {
+                    self.showNotification("¡Temporizador Finalizado!")
+                    self.isTimerRunning = false
+                }
+            }
+        }
+        
+        // Periodic timer for system performance and background stats
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            self.refreshSystemPerformance()
+            self.refreshDiskSpace()
+            self.refreshWiFiStatus()
+            self.refreshHeadphoneStatus()
+        }
+        
+        // Timer for Visualizer Bars
+        Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            if self.isPlaying {
+                self.bars = self.bars.map { _ in CGFloat.random(in: 6...28) }
+            }
+        }
+        
+        loadAlarms()
+    }
+    
+    func checkHardwareCapabilities() {
+        // 1. Camera Detection (Robust via AVFoundation)
+        let discoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .external], mediaType: .video, position: .unspecified)
+        self.hasCamera = !discoverySession.devices.isEmpty
+        
+        print("🖥️ Hardware Detection: hasCamera=\(hasCamera)")
+    }
+
     @Published var isDisabled: Bool = false {
         didSet {
             if isDisabled {
@@ -199,6 +269,9 @@ class IslandState: ObservableObject {
     @Published var diskFree: String = "-- GB"
     @Published var diskUsedPercentage: Double = 0.0
     
+    // Hardware Capabilities
+    @Published var hasCamera: Bool = true // Detectable
+    
     // Detailed WiFi
     @Published var wifiSignal: Int = 0
     @Published var wifiSpeed: Int = 0
@@ -226,79 +299,7 @@ class IslandState: ObservableObject {
     
     private var collapseTimer: Timer?
 
-    init() {
-        self.mode = .compact
-        self.isExpanded = false
-        
-        loadSettings()
-        
-        startMockUpdates()
-        refreshVolume()
-        
-        // Fast timer for clipboard and music progress
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            self.refreshClipboard()
-            self.updatePomodoro()
-            
-            // Song progress
-            if self.isPlaying && self.trackPosition < self.trackDuration {
-                self.trackPosition += 1
-            }
-            
-            // Countdown Timer
-            if self.isTimerRunning && self.timerRemaining > 0 {
-                self.timerRemaining -= 1
-                if self.timerRemaining == 0 {
-                    self.showNotification("¡Temporizador Finalizado!")
-                    self.isTimerRunning = false
-                }
-            }
-        }
-        
-        // Slower timer for Calendar (every 10 mins)
-        Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { [weak self] _ in
-            self?.refreshCalendar()
-        }
-        
-        // Timer for Visualizer Bars
-        Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            if self.isPlaying {
-                self.bars = self.bars.map { _ in CGFloat.random(in: 6...28) }
-            }
-        }
-        
-    // Timer to refresh status (Headphones, WiFi, etc) - Less frequent to avoid lag
-    Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
-        self?.refreshBluetoothDevices()
-        self?.refreshWiFiStatus()
-    }
-    
-    // Timer for Alarms (every second check, but careful with efficiency)
-    Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-        self?.checkAlarms()
-    }
-    
-    // Load Alarms
-    loadAlarms()
-        
-        // Initial refresh (delayed to not block startup)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            self?.requestLocationPermission()
-            self?.refreshBluetoothDevices()
-            self?.refreshWiFiStatus()
-            self?.refreshNotes()
-            self?.refreshCalendar()
-        }
-        
-        // System Performance Monitor
-        Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
-            self?.refreshSystemPerformance()
-            self?.refreshDiskSpace()
-        }
-    }
-    
+
     private var locationManager: CLLocationManager?
     
     func requestLocationPermission() {
@@ -326,13 +327,17 @@ class IslandState: ObservableObject {
     }
     
     func refreshSystemPerformance() {
-        // Mock CPU/RAM for now, as real access needs specific permissions or complex shell parsing
-        // We'll use a realistic random walk for the UI demo
+        // Mock System Monitor
         DispatchQueue.main.async {
-            self.cpuUsage = (self.cpuUsage * 0.7) + (Double.random(in: 5...45) * 0.3)
-            self.memoryUsed = (self.memoryUsed * 0.95) + (Double.random(in: 4...12) * 0.05)
+            // CPU & RAM Simulation
+            let loadFactor = Double.random(in: 5...35)
+            self.cpuUsage = (self.cpuUsage * 0.8) + (loadFactor * 0.2)
+            self.memoryUsed = (self.memoryUsed * 0.98) + (Double.random(in: 6...14) * 0.02)
             self.ramUsage = (self.memoryUsed / self.memoryTotal) * 100
-            self.systemTemp = (self.systemTemp * 0.9) + (Double.random(in: 40...75) * 0.1)
+            
+            // Basic mock temperature
+            let targetTemp = 38.0 + (self.cpuUsage / 5.0)
+            self.systemTemp = (self.systemTemp * 0.9) + (targetTemp * 0.1)
         }
     }
     
@@ -1344,9 +1349,6 @@ class IslandState: ObservableObject {
             "CONFIGURACIÓN DE LA ISLA": [.spanish: "CONFIGURACIÓN DE LA ISLA", .english: "ISLAND SETTINGS"],
             "Color Fondo": [.spanish: "Color Fondo", .english: "Island Color"],
             "CPU": [.spanish: "CPU", .english: "CPU"],
-            "RAM": [.spanish: "Memoria RAM", .english: "Memory RAM"],
-            "TEMP": [.spanish: "Temperatura", .english: "Temperature"],
-            "SSD": [.spanish: "Disco SSD", .english: "SSD Drive"],
             "Sin alarmas": [.spanish: "Sin alarmas", .english: "No alarms"],
             "VACÍO": [.spanish: "VACÍO", .english: "EMPTY"],
             "Alarma": [.spanish: "Alarma", .english: "Alarm"],
@@ -1431,6 +1433,9 @@ class IslandState: ObservableObject {
             "Solid Color": [.spanish: "Color Sólido", .english: "Solid Color"],
             "Español": [.spanish: "Español", .english: "Spanish"],
             "English": [.spanish: "Inglés", .english: "English"],
+            "RAM": [.spanish: "Memoria RAM", .english: "RAM Memory"],
+            "TEMP": [.spanish: "Temperatura", .english: "Temperature"],
+            "SSD": [.spanish: "Disco SSD", .english: "SSD Disk"],
             "UNIRSE": [.spanish: "UNIRSE", .english: "JOIN"]
         ]
         
