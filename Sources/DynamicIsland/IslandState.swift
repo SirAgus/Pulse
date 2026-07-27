@@ -125,25 +125,13 @@ class IslandState: ObservableObject {
             }
         }
     }
-    private var lastCollapseTime: Date = .distantPast
-    
     @Published var isHovering: Bool = false {
         didSet {
             if isHovering {
                 cancelCollapseTimer()
-                
-                // Don't re-expand if we just collapsed (prevents loop when clicking outside)
-                let timeSinceCollapse = Date().timeIntervalSince(lastCollapseTime)
-                if timeSinceCollapse < 0.5 {
-                    print("🛡️ Blocking hover expansion (too soon after collapse)")
-                    return
-                }
 
                 if mode == .idle {
                     setMode(.compact, autoCollapse: false)
-                }
-                if !isExpanded {
-                    expand()
                 }
             }
         }
@@ -154,7 +142,9 @@ class IslandState: ObservableObject {
     @Published var artistName: String = ""
     @Published var isPlaying: Bool = false {
         didSet {
-            if isPlaying && mode != .music {
+            // Do not pull the user away from an expanded dashboard section.
+            // The persistent now-playing bar remains available there.
+            if isPlaying && mode != .music && !isExpanded {
                 setMode(.music)
             } else if !isPlaying && mode == .music {
                 setMode(.compact)
@@ -507,9 +497,11 @@ class IslandState: ObservableObject {
     
     func collapse() {
         guard isExpanded else { return }
-        lastCollapseTime = Date()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0)) {
             isExpanded = false
+            if isPlaying && !songTitle.isEmpty {
+                mode = .music
+            }
         }
     }
     
@@ -1037,6 +1029,9 @@ class IslandState: ObservableObject {
     
     func pausePomodoro() {
         isPomodoroRunning = false
+        // Manual cancellation leaves the remaining time intact, but restores the
+        // normal compact notch instead of presenting an ambiguous focus state.
+        setMode(.compact, autoCollapse: false)
     }
     
     func resetPomodoro() {
@@ -1066,6 +1061,8 @@ class IslandState: ObservableObject {
     }
     
     private func triggerPomodoroAlarm() {
+        // A pending inactivity timer must not collapse the completion state.
+        cancelCollapseTimer()
         isPomodoroRinging = true
         isExpanded = true
         
@@ -1151,12 +1148,12 @@ class IslandState: ObservableObject {
     func widthForMode(_ mode: IslandMode, isExpanded: Bool) -> CGFloat {
         if isExpanded {
             switch mode {
-            case .compact: return 500
-            case .music: return 450
-            case .timer: return 350
-            case .notes: return 500 // Match dashboard width
-            case .productivity: return 500
-            default: return 320
+            case .compact: return 520
+            case .music: return 400
+            case .timer: return 420
+            case .notes: return 520
+            case .productivity: return 520
+            default: return 420
             }
         } else {
             // Adaptive compact width based on notch
@@ -1183,18 +1180,27 @@ class IslandState: ObservableObject {
     func heightForMode(_ mode: IslandMode, isExpanded: Bool) -> CGFloat {
         if isExpanded {
             switch mode {
-            case .compact: return 520
-            case .music: return 280
-            case .battery: return 200
-            case .volume: return 200
-            case .timer: return 520
-            case .notes: return 520
-            case .productivity: return 520
-            default: return 520
+            case .compact: return hasNotch ? 520 : 480
+            case .music: return hasNotch ? notchHeight + 185 : 185
+            case .battery: return 150
+            case .volume: return 150
+            case .timer: return hasNotch ? 420 : 380
+            case .notes: return hasNotch ? 500 : 460
+            case .productivity: return hasNotch ? 520 : 480
+            default: return 420
             }
         } else {
-            // Minimized height to hug text (notch + 36)
-            return hasNotch ? notchHeight + 36 : 45
+            // Keep controls below a physical notch; otherwise use a tighter top ribbon.
+            if hasNotch {
+                return notchHeight + 32
+            }
+
+            switch mode {
+            case .music, .productivity:
+                return 32
+            default:
+                return 40
+            }
         }
     }
     func toggleWidget(_ id: String) {

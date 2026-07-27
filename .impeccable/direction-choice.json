@@ -1,0 +1,16 @@
+{
+  "title": "Dirección visual de Pulse",
+  "question": "Impeccable asignó una dirección propia para sustituir el mosaico de tarjetas actual. Confírmala, reorienta el concepto o elige la salida convencional.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Telemetry Ribbon",
+      "kicker": "DIRECCIÓN ASIGNADA",
+      "lineage": "Tiras de telemetría, señalética de misión y controles de estudio",
+      "body": "Pulse se convierte en una cinta de estado viva conectada físicamente al notch: una línea de señal recorre la interfaz, cambia de ritmo según música, foco o alertas y organiza cada vista como un instrumento continuo en vez de una colección de tarjetas. Fondo carbón mate, tipografía nativa precisa, blanco mineral y un único color espectral definido por el usuario. La vista compacta muestra una lectura dominante; al expandirse, esa misma señal guía hacia la acción principal y luego a los controles secundarios. El riesgo honesto es que exige disciplina para que la telemetría siga siendo útil y no parezca una interfaz de ciencia ficción."
+    }
+  ],
+  "reroll": true,
+  "canon": true,
+  "steer": true
+}

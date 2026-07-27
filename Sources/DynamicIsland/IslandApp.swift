@@ -221,7 +221,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         print("   - Activating App (NSRunningApplication force)...")
-                        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+                        NSApp.activate()
                         
                         if let window = self?.window {
                             // Bump level to ensure it captures clicks
@@ -286,34 +286,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let notchRect = notchInfo.notchRect {
             // Center horizontally relative to the notch
             x = notchRect.midX - (width / 2)
-            
-            if state.isExpanded {
-                // Expanded: Stick to absolute top
-                let screenFrame = targetScreen.frame
-                y = screenFrame.maxY - height
-            } else {
-                // Compact: Stick to absolute top
-                let screenFrame = targetScreen.frame
-                y = screenFrame.maxY - height
-            }
+
+            // The detector is authoritative on notched displays. The window
+            // begins at the physical top edge; IslandView reserves notchHeight
+            // internally so controls always render below the hardware cutout.
+            y = targetScreen.frame.maxY - height
             print("🏝️ Notch detected at \(notchRect), positioning island at (\(x), \(y))")
         } else {
             // Fallback for screens without notch
             let screenFrame = targetScreen.frame
-            let visibleFrame = targetScreen.visibleFrame
             
             x = screenFrame.origin.x + (screenFrame.width - width) / 2
-            
-            if state.hasNotch {
-                if state.isExpanded {
-                    y = visibleFrame.maxY - height
-                } else {
-                    y = screenFrame.maxY - height
-                }
-            } else {
-                // Floating island when no notch
-                y = screenFrame.maxY - height - 10
-            }
+
+            // No physical cutout: compact and expanded states share the same
+            // top-edge origin instead of leaving the former 12 pt gap.
+            y = screenFrame.maxY - height
             print("🏝️ No notch detected, positioning island at top center (\(x), \(y))")
         }
         

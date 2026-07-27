@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-27T00:00:00-04:00",
+  "title": "Design System: Pulse",
+  "extensions": {
+    "colorMeta": {
+      "carbon": {
+        "role": "neutral",
+        "displayName": "Carbon",
+        "canonical": "#0E1012",
+        "tonalRamp": ["#090A0B", "#0E1012", "#171B1E", "#252B30", "#3B444B", "#68737B", "#AEB6BB", "#F2F4F5"]
+      },
+      "raised-carbon": {
+        "role": "neutral",
+        "displayName": "Raised Carbon",
+        "canonical": "#171B1E",
+        "tonalRamp": ["#090A0B", "#101316", "#171B1E", "#242B30", "#39434A", "#66727A", "#ADB6BB", "#F2F4F5"]
+      },
+      "signal": {
+        "role": "primary",
+        "displayName": "Spectral Signal",
+        "canonical": "#54E6C7",
+        "tonalRamp": ["#06271F", "#0A4638", "#126B57", "#1D9277", "#31B99A", "#54E6C7", "#A0F4E1", "#E9FCF7"]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Native headline",
+        "purpose": "Current media, surface titles, and the dominant non-numeric reading."
+      },
+      "body": {
+        "displayName": "Native control",
+        "purpose": "Labels and actions that must remain familiar on macOS."
+      },
+      "readout": {
+        "displayName": "Live readout",
+        "purpose": "Changing time and measurement values only."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "signal-shift",
+        "value": "ease-out 220ms",
+        "purpose": "Moves the active rail segment between modes."
+      },
+      {
+        "name": "island-morph",
+        "value": "spring(stiffness: 300, damping: 25)",
+        "purpose": "Maintains physical continuity between compact and expanded states."
+      }
+    ]
+  },
+  "components": [],
+  "narrative": {
+    "northStar": "Telemetry Ribbon",
+    "overview": "Pulse behaves like a continuous instrument attached to the physical notch. A thin signal path, precise readouts, and calm tonal fields make compact and expanded states feel like one surface changing resolution.",
+    "keyCharacteristics": [
+      "A continuous signal line connects state, navigation, and action.",
+      "Matte carbon surfaces with mineral-white type and one spectral user accent.",
+      "Native macOS typography, symbols, input behavior, and accessibility.",
+      "Tonal grouping replaces stacks of floating cards."
+    ],
+    "rules": [
+      {
+        "name": "The One Signal Rule",
+        "body": "On each surface, one accent owns the active path.",
+        "section": "colors"
+      },
+      {
+        "name": "The Single Object Rule",
+        "body": "The island is one shadowless silhouette; content inside it may not pretend to be separate windows.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do make the active state readable before exposing secondary controls.",
+      "Do preserve familiar macOS symbols and input behavior."
+    ],
+    "donts": [
+      "Don't place every feature in an equal-weight rounded card.",
+      "Don't use glow, glass blur, or gradients as substitutes for hierarchy."
+    ]
+  }
+}

@@ -2,10 +2,40 @@ import SwiftUI
 import AppKit
 import AVFoundation
 
+/*
+ THESIS: Pulse is one continuous instrument attached to the notch, not a grid of floating widgets.
+ OWN-WORLD: Matte carbon, mineral-white type, hairline rails, and one spectral signal color.
+ STORY: Read the active state, take one clear action, then return to the primary Mac task.
+ FIRST VIEWPORT: Status and mode rail above one dominant readout; secondary telemetry follows in aligned bands.
+ FORM: Telemetry Ribbon, grounded direction 6, horizontal-spine staging, seed ddbb8a66.
+*/
 struct IslandView: View {
     @EnvironmentObject var state: IslandState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var animation
     @FocusState private var isSearchFocused: Bool
+
+    private var pulseCarbon: Color {
+        Color(red: 0.055, green: 0.063, blue: 0.071)
+    }
+
+    private var pulseRaised: Color {
+        Color(red: 0.090, green: 0.106, blue: 0.118)
+    }
+
+    private var pulseSignal: Color {
+        state.accentColor == .white
+            ? Color(red: 0.33, green: 0.90, blue: 0.78)
+            : state.accentColor
+    }
+
+    private var pulseBaseColor: Color {
+        guard state.mode != .idle else { return .clear }
+        if state.backgroundStyle == .solid {
+            return state.islandColor
+        }
+        return pulseCarbon.opacity(state.backgroundStyle == .liquidGlass ? 0.96 : 0.99)
+    }
     
     // Timer icon loaded from Resources
     private var timerIcon: NSImage? {
@@ -20,35 +50,21 @@ struct IslandView: View {
 
     var body: some View {
         ZStack {
-            // Main Island Background with Tap Gesture
             Rectangle()
-                .fill((state.backgroundStyle == .solid || !state.isExpanded) && state.mode != .idle ? state.islandColor.opacity(0.98) : (state.mode == .idle ? Color.clear : Color.black.opacity(0.1)))
+                .fill(pulseBaseColor)
+                .overlay(alignment: .top) {
+                    if state.mode != .idle {
+                        Rectangle()
+                            .fill(Color.white.opacity(0.08))
+                            .frame(height: 1)
+                    }
+                }
                 .onTapGesture {
                     if !state.isExpanded {
                         state.toggleExpand()
                     }
                 }
                 .allowsHitTesting(!state.isExpanded)
-                .background(
-                    ZStack {
-                        if state.mode != .idle {
-                            if state.backgroundStyle == .liquidGlass {
-                                VisualEffectView(material: .headerView, blendingMode: .behindWindow)
-                                    .background(Color.black.opacity(0.4)) // Darker base for liquid glass
-                                    .overlay(
-                                        Rectangle()
-                                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                                    )
-                            } else if state.backgroundStyle == .liquidGlassDark {
-                                VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
-                                    .overlay(
-                                        Rectangle()
-                                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                                    )
-                            }
-                        }
-                    }
-                )
                 .clipShape(islandMask)
 
             
@@ -86,9 +102,9 @@ struct IslandView: View {
         .onHover { hovering in
             state.isHovering = hovering
         }
-        .animation(.interpolatingSpring(stiffness: 300, damping: 25), value: state.mode)
-        .animation(.interpolatingSpring(stiffness: 300, damping: 25), value: state.isExpanded)
-        .animation(.spring(), value: state.selectedApp)
+        .animation(reduceMotion ? nil : .interpolatingSpring(stiffness: 300, damping: 25), value: state.mode)
+        .animation(reduceMotion ? nil : .interpolatingSpring(stiffness: 300, damping: 25), value: state.isExpanded)
+        .animation(reduceMotion ? nil : .spring(), value: state.selectedApp)
     }
     
     @ViewBuilder
@@ -222,8 +238,10 @@ struct IslandView: View {
                         .foregroundColor(.orange)
                         .fixedSize()
                 } else {
-                    Text(state.l("Productividad"))
+                    Text(state.l("Enfoque"))
                         .font(.system(size: 11, weight: .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                 }
             }
             
@@ -237,7 +255,7 @@ struct IslandView: View {
             .frame(width: 30, alignment: .trailing)
             .padding(.trailing, 15)
         }
-        .padding(.bottom, 6)
+        .frame(height: 32)
         .frame(maxHeight: .infinity, alignment: .bottom)
         .contentShape(Rectangle())
         .onTapGesture {
@@ -247,24 +265,26 @@ struct IslandView: View {
     
     private var islandCornerRadius: CGFloat {
         if state.isExpanded {
-            return state.mode == .music ? 40 : 48
+            return state.mode == .music ? 22 : 24
         } else {
-            return 22 // Soft rectangle, not full pill
+            return 20
         }
     }
 
     private var islandMask: some Shape {
-        UnevenRoundedRectangle(
-            topLeadingRadius: state.hasNotch ? 0 : islandCornerRadius,
+        let topRadius = state.isExpanded && !state.hasNotch ? islandCornerRadius : 0
+
+        return UnevenRoundedRectangle(
+            topLeadingRadius: topRadius,
             bottomLeadingRadius: islandCornerRadius,
             bottomTrailingRadius: islandCornerRadius,
-            topTrailingRadius: state.hasNotch ? 0 : islandCornerRadius,
+            topTrailingRadius: topRadius,
             style: .continuous
         )
     }
 
     var compactMusicContent: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             // Artwork / App Icon on the left
             ZStack {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -292,10 +312,18 @@ struct IslandView: View {
             .shadow(color: .black.opacity(0.3), radius: 2)
             
             // Song Title in the middle
-            Text(state.songTitle)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .lineLimit(1)
-                .frame(maxWidth: .infinity)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(state.songTitle)
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+                if !state.artistName.isEmpty {
+                    Text(state.artistName)
+                        .font(.system(size: 8, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.45))
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             
             HStack(spacing: 6) {
                 if let battery = state.headphoneBattery {
@@ -312,8 +340,8 @@ struct IslandView: View {
                 MusicWaveform(isPlaying: state.isPlaying, color: .orange, barCount: 3, maxHeight: 12)
             }
         }
-        .padding(.horizontal, 15)
-        .padding(.bottom, 10)
+        .padding(.horizontal, 12)
+        .frame(height: 32)
         .frame(maxHeight: .infinity, alignment: .bottom)
         .contentShape(Rectangle())
         .onTapGesture {
@@ -367,60 +395,62 @@ struct IslandView: View {
     }
     
     var expandedTimerContent: some View {
-        VStack(spacing: 15) {
+        VStack(spacing: 18) {
             HStack {
                 Button(action: { state.showDashboard() }) {
-                    Image(systemName: "chevron.left.circle.fill")
-                        .font(.system(size: 20))
-                        .opacity(0.3)
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 13, weight: .semibold))
                 }
                 .buttonStyle(.plain)
+
+                Text(state.l("Temporizador"))
+                    .font(.system(size: 13, weight: .semibold))
+
                 Spacer()
-                Text(state.l("TEMPORIZADOR"))
-                    .font(.system(size: 10, weight: .black))
-                    .opacity(0.4)
-                Spacer()
-                Image(systemName: "timer").foregroundColor(.orange)
+
+                Circle()
+                    .fill(state.isTimerRunning ? pulseSignal : Color.white.opacity(0.24))
+                    .frame(width: 5, height: 5)
             }
-            
+
             Text(formatTime(state.timerRemaining))
-                .font(.system(size: 40, weight: .black, design: .monospaced))
-            
-            HStack(spacing: 15) {
+                .font(.system(size: 48, weight: .semibold, design: .monospaced))
+                .monospacedDigit()
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Rectangle()
+                .fill(state.isTimerRunning ? pulseSignal : Color.white.opacity(0.10))
+                .frame(height: 3)
+
+            HStack(spacing: 8) {
                 if state.isTimerRunning {
                     Button(action: { state.stopTimer() }) {
                         Text(state.l("PAUSAR"))
-                            .font(.system(size: 12, weight: .bold))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 40)
-                            .background(Color.orange.opacity(0.2))
-                            .cornerRadius(12)
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(width: 112, height: 40)
+                            .background(Color.red.opacity(0.72))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 } else {
-                    Button(action: { state.startTimer(minutes: 5) }) {
-                        Text("5m")
-                            .font(.system(size: 12, weight: .bold))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 40)
-                            .background(Color.white.opacity(0.1))
-                            .cornerRadius(12)
+                    ForEach([5, 10, 25], id: \.self) { minutes in
+                        Button(action: { state.startTimer(minutes: minutes) }) {
+                            Text("\(minutes) min")
+                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 40)
+                                .background(minutes == 5 ? pulseSignal : pulseRaised)
+                                .foregroundColor(minutes == 5 ? .black : .white.opacity(0.72))
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                    
-                    Button(action: { state.startTimer(minutes: 10) }) {
-                        Text("10m")
-                            .font(.system(size: 12, weight: .bold))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 40)
-                            .background(Color.white.opacity(0.1))
-                            .cornerRadius(12)
-                    }
-                    .buttonStyle(.plain)
                 }
             }
         }
-        .padding(20)
+        .padding(.horizontal, 24)
+        .padding(.top, state.hasNotch ? state.notchHeight + 16 : 20)
+        .padding(.bottom, 24)
     }
     
     // MARK: - Native Notes Views
@@ -429,7 +459,7 @@ struct IslandView: View {
         HStack {
             HStack(spacing: 8) {
                 Image(systemName: "note.text")
-                    .foregroundColor(.yellow)
+                    .foregroundColor(pulseSignal)
             }
             .frame(width: 30, alignment: .leading)
             .padding(.leading, 15)
@@ -463,13 +493,13 @@ struct IslandView: View {
         HStack {
             Group {
                 if state.editingNoteIndex != nil {
-                    Button(action: { withAnimation(.spring()) { state.editingNoteIndex = nil } }) {
+                    Button(action: { withAnimation(reduceMotion ? nil : .spring()) { state.editingNoteIndex = nil } }) {
                         HStack(spacing: 6) {
                             Image(systemName: "chevron.left")
                             Text(state.l("Mis Notas"))
                         }
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.yellow)
+                        .foregroundColor(pulseSignal)
                     }
                 } else {
                     Button(action: { state.showDashboard() }) {
@@ -483,10 +513,9 @@ struct IslandView: View {
             
             Spacer()
             
-            Text(state.editingNoteIndex != nil ? "EDITOR DE NOTAS" : "MIS NOTAS")
-                .font(.system(size: 10, weight: .black))
-                .kerning(1)
-                .opacity(0.4)
+            Text(state.editingNoteIndex != nil ? state.l("Editor de notas") : state.l("Mis notas"))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.white.opacity(0.78))
             
             Spacer()
             
@@ -501,7 +530,7 @@ struct IslandView: View {
                     
                     Button(action: { state.addNote() }) {
                         Image(systemName: "plus.circle.fill")
-                            .foregroundColor(.yellow)
+                            .foregroundColor(pulseSignal)
                             .font(.system(size: 20))
                     }
                     .buttonStyle(.plain)
@@ -510,14 +539,14 @@ struct IslandView: View {
                 Button(action: {
                     if let index = state.editingNoteIndex {
                         state.saveNote(at: index, newContent: state.notes[index].content)
-                        withAnimation(.spring()) { state.editingNoteIndex = nil }
+                        withAnimation(reduceMotion ? nil : .spring()) { state.editingNoteIndex = nil }
                     }
                 }) {
                     Text(state.l("LISTO"))
                         .font(.system(size: 10, weight: .black))
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background(state.accentColor)
+                        .background(pulseSignal)
                         .foregroundColor(.black)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
@@ -543,14 +572,13 @@ struct IslandView: View {
                 ), axis: .vertical)
                 .focused($isNoteFocused)
                 .textFieldStyle(.plain)
-                .font(.system(size: 17, weight: .medium, design: .rounded))
+                .font(.system(size: 15, weight: .medium))
                 .foregroundColor(.white)
                 .padding(25)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .background(
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .fill(Color.white.opacity(0.04))
-                        .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).stroke(Color.white.opacity(0.05), lineWidth: 1))
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(pulseRaised.opacity(0.72))
                 )
                 .padding(.horizontal, 22)
                 .padding(.bottom, 25)
@@ -573,7 +601,7 @@ struct IslandView: View {
 
     var notesListView: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 0) {
                 if state.isSyncingNotes && state.notes.isEmpty {
                     VStack(spacing: 15) {
                         ProgressView().scaleEffect(0.8)
@@ -581,30 +609,28 @@ struct IslandView: View {
                     }.padding(.top, 60).frame(maxWidth: .infinity)
                 } else {
                     ForEach(state.notes.indices, id: \.self) { index in
-                        Button(action: { withAnimation(.spring()) { state.editingNoteIndex = index } }) {
+                        Button(action: { withAnimation(reduceMotion ? nil : .spring()) { state.editingNoteIndex = index } }) {
                             VStack(alignment: .leading, spacing: 10) {
                                 Text(state.notes[index].content)
-                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(.white)
                                     .lineLimit(3)
                                     .multilineTextAlignment(.leading)
                                 
                                 HStack(spacing: 4) {
                                     Image(systemName: "icloud.fill").font(.system(size: 9))
-                                    Text(state.l("SINCRONIZADO")).font(.system(size: 8, weight: .black))
+                                    Text(state.l("Sincronizado")).font(.system(size: 9, weight: .medium))
                                     Spacer()
                                     Image(systemName: "chevron.right").font(.system(size: 10)).opacity(0.3)
                                 }
                                 .opacity(0.3)
                             }
-                            .padding(22)
+                            .padding(.vertical, 14)
+                            .padding(.horizontal, 4)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.white.opacity(0.03))
-                            .clipShape(RoundedRectangle(cornerRadius: 25, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 25, style: .continuous)
-                                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                            )
+                            .overlay(alignment: .bottom) {
+                                Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1)
+                            }
                         }
                         .buttonStyle(.plain)
                         .onHover { isHovering in
@@ -654,85 +680,108 @@ struct IslandView: View {
     
     var expandedDashboardContent: some View {
         VStack(spacing: 0) {
-            // MARK: - Status Bar (Battery, Time, WiFi)
-            HStack {
-                // Battery indicator
-                HStack(spacing: 4) {
-                    Image(systemName: state.isCharging ? "battery.100.bolt" : batteryIcon)
-                        .font(.system(size: 11))
-                        .foregroundColor(state.batteryLevel < 20 ? .red : .green)
-                    Text("\(state.batteryLevel)%")
-                        .font(.system(size: 10, weight: .black))
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.white.opacity(0.05))
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(Color.white.opacity(0.05), lineWidth: 1))
-                
+            HStack(spacing: 12) {
+                Text("PULSE")
+                    .font(.system(size: 11, weight: .bold))
+                    .tracking(1.4)
+                    .foregroundColor(.white.opacity(0.88))
+
+                Text(Date(), style: .time)
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.54))
+
                 Spacer()
-                
-                // Time with status dots
-                VStack(spacing: 2) {
-                    Text(Date(), style: .time)
-                        .font(.system(size: 12, weight: .black, design: .rounded))
-                        .foregroundColor(.white.opacity(0.9))
-                    HStack(spacing: 4) {
-                        Circle().fill(state.isPomodoroRunning ? Color.orange : Color.orange.opacity(0.3))
-                            .frame(width: 5, height: 5)
-                            .shadow(color: state.isPomodoroRunning ? .orange : .clear, radius: 4)
-                        Circle().fill(state.isPlaying ? Color.green : Color.green.opacity(0.3))
-                            .frame(width: 5, height: 5)
-                    }
-                }
-                
-                Spacer()
-                
-                // WiFi indicator
+
                 HStack(spacing: 4) {
                     Image(systemName: "wifi")
-                        .font(.system(size: 11))
-                        .foregroundColor(.blue)
-                    Text(state.wifiSSID.isEmpty ? "WiFi" : String(state.wifiSSID.prefix(6)))
-                        .font(.system(size: 10, weight: .black))
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(pulseSignal)
+                    Text(state.wifiSSID.isEmpty ? "Wi‑Fi" : state.wifiSSID)
+                        .lineLimit(1)
+                    Text("·")
+                    Image(systemName: state.isCharging ? "battery.100.bolt" : batteryIcon)
+                    Text("\(state.batteryLevel)%")
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.white.opacity(0.05))
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(Color.white.opacity(0.05), lineWidth: 1))
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.white.opacity(0.62))
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
-            .padding(.bottom, 8)
+            .padding(.horizontal, 20)
+            .padding(.top, 13)
+            .padding(.bottom, 10)
+
+            if !state.songTitle.isEmpty {
+                dashboardNowPlayingBar
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
+            }
             
-            // MARK: - Tab Navigation (6 tabs)
             dashboardTabNavigation
                 .padding(.horizontal, 16)
+
+            dashboardSignalRail
+                .padding(.horizontal, 20)
                 .padding(.bottom, 8)
             
-            // MARK: - Content Area (takes all remaining space)
             dashboardTabContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(.top, state.hasNotch ? state.notchHeight : 10) // Clear the notch
+        .padding(.top, state.hasNotch ? state.notchHeight : 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay(
-            // MARK: - Ambient Light Effects (as overlay, not taking space)
-            ZStack {
-                Circle()
-                    .fill(Color.orange.opacity(0.06))
-                    .frame(width: 150, height: 150)
-                    .blur(radius: 60)
-                    .offset(x: 120, y: 80)
-                Circle()
-                    .fill(Color.blue.opacity(0.04))
-                    .frame(width: 150, height: 150)
-                    .blur(radius: 60)
-                    .offset(x: -120, y: -50)
+    }
+
+    var dashboardNowPlayingBar: some View {
+        Button(action: { state.showMusic() }) {
+            HStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(state.accentColor.opacity(0.14))
+
+                    if let artwork = state.trackArtwork {
+                        Image(nsImage: artwork)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } else {
+                        Image(systemName: "music.note")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(state.accentColor)
+                    }
+                }
+                .frame(width: 26, height: 26)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(state.songTitle)
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                    Text(state.artistName.isEmpty ? state.currentPlayer : state.artistName)
+                        .font(.system(size: 8, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.45))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                MusicWaveform(
+                    isPlaying: state.isPlaying,
+                    color: state.accentColor,
+                    barCount: 3,
+                    maxHeight: 11
+                )
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.white.opacity(0.25))
             }
-            .allowsHitTesting(false)
-        )
+            .padding(.horizontal, 8)
+            .frame(height: 34)
+            .background(Color.white.opacity(0.035))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.white.opacity(0.045), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
     
     var batteryIcon: String {
@@ -756,30 +805,53 @@ struct IslandView: View {
             (state.l("Setup"), "gearshape", "settings")
         ]
         
-        return HStack(spacing: 6) {
+        return HStack(spacing: 2) {
             ForEach(tabs, id: \.2) { tab in
                 Button(action: {
                     print("🔘 Tab clicked: \(tab.2)")
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7)) {
                         state.activeCategory = tab.2
                     }
                 }) {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 5) {
                         Image(systemName: tab.1)
-                            .font(.system(size: 20, weight: .bold))
+                            .font(.system(size: 13, weight: .semibold))
+
+                        Circle()
+                            .fill(state.activeCategory == tab.2 ? pulseSignal : Color.clear)
+                            .frame(width: 3, height: 3)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(state.activeCategory == tab.2 ? state.accentColor : Color.clear)
-                    .foregroundColor(state.activeCategory == tab.2 ? (state.accentColor == .white ? .black : .black) : .white.opacity(0.4))
+                    .frame(height: 34)
+                    .foregroundColor(state.activeCategory == tab.2 ? .white : .white.opacity(0.34))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .scaleEffect(state.activeCategory == tab.2 ? 1.02 : 1.0)
-                .shadow(color: state.activeCategory == tab.2 ? state.accentColor.opacity(0.3) : .clear, radius: 8)
+                .help(tab.0)
+                .accessibilityLabel(tab.0)
+                .accessibilityValue(state.activeCategory == tab.2 ? state.l("Seleccionado") : "")
             }
         }
+    }
+
+    var dashboardSignalRail: some View {
+        let ids = ["apps", "connections", "clipboard", "widgets", "media", "focus", "settings"]
+        let activeIndex = ids.firstIndex(of: state.activeCategory) ?? 0
+
+        return GeometryReader { geometry in
+            let segment = geometry.size.width / CGFloat(ids.count)
+            ZStack(alignment: .leading) {
+                Rectangle()
+                    .fill(Color.white.opacity(0.10))
+                    .frame(height: 1)
+                Rectangle()
+                    .fill(pulseSignal)
+                    .frame(width: segment, height: 2)
+                    .offset(x: segment * CGFloat(activeIndex))
+            }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: state.activeCategory)
+        }
+        .frame(height: 2)
     }
     
     @ViewBuilder
@@ -807,76 +879,79 @@ struct IslandView: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
-            .padding(.bottom, 60)
+            .padding(.bottom, 18)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: state.activeCategory)
+        .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8), value: state.activeCategory)
     }
     
     // MARK: - Apps Tab
     var dashboardAppsView: some View {
-        VStack(spacing: 28) {
-            // Apps Grid
-            VStack(alignment: .leading, spacing: 15) {
-                Text(state.l(state.activeCategory.uppercased()))
-                    .font(.system(size: 9, weight: .black))
-                    .foregroundColor(.white.opacity(0.3))
-                    .padding(.horizontal, 4)
-                
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+        VStack(spacing: 22) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(state.l("Ahora"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.76))
+
+                performanceBentoWidget
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(state.l("Acceso rápido"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.76))
+
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                     ForEach(getAppsForCategory(state.activeCategory), id: \.id) { app in
-                        VStack(spacing: 10) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(Color.white.opacity(0.06))
-                                    .frame(width: 52, height: 52)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                                    )
-                                
+                        Button(action: { state.openApp(named: app.id) }) {
+                            HStack(spacing: 9) {
                                 Image(systemName: app.icon)
-                                    .font(.system(size: 22))
-                                    .foregroundColor(app.color)
-                                
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(app.color == .white ? pulseSignal : app.color)
+                                    .frame(width: 22)
+
+                                Text(app.name)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.82))
+                                    .lineLimit(1)
+
+                                Spacer(minLength: 0)
+
                                 if let badge = app.badge, !badge.isEmpty {
                                     Text(badge)
-                                        .font(.system(size: 9, weight: .black))
+                                        .font(.system(size: 8, weight: .bold))
                                         .foregroundColor(.white)
-                                        .frame(width: 18, height: 18)
+                                        .frame(minWidth: 16, minHeight: 16)
                                         .background(Color.red)
                                         .clipShape(Circle())
-                                        .offset(x: 20, y: -20)
                                 }
                             }
-                            
-                            Text(app.name)
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.white.opacity(0.4))
+                            .padding(.horizontal, 10)
+                            .frame(height: 38)
+                            .background(pulseRaised.opacity(0.64))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         }
-                        .onTapGesture {
-                            state.openApp(named: app.id)
-                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
 
             // Header with Widget Adder
             HStack {
-                Text(state.l("WIDGETS DEL SISTEMA"))
-                    .font(.system(size: 9, weight: .black))
-                    .foregroundColor(.white.opacity(0.3))
+                Text(state.l("Sistema"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.76))
                 Spacer()
-                Button(action: { withAnimation(.spring()) { state.showWidgetPicker.toggle() } }) {
+                Button(action: { withAnimation(reduceMotion ? nil : .spring()) { state.showWidgetPicker.toggle() } }) {
                     HStack(spacing: 4) {
                         Image(systemName: "plus.circle.fill")
-                        Text(state.showWidgetPicker ? state.l("LISTO") : state.l("AÑADIR"))
+                        Text(state.showWidgetPicker ? state.l("Listo") : state.l("Añadir"))
                     }
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(state.accentColor)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(pulseSignal)
                     .padding(.horizontal, 10 )
                     .padding(.vertical, 5)
-                    .background(state.accentColor.opacity(0.1))
+                    .background(pulseSignal.opacity(0.10))
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -892,8 +967,6 @@ struct IslandView: View {
             VStack(spacing: 20) {
                 ForEach(state.pinnedWidgets, id: \.self) { widgetId in
                     switch widgetId {
-                    case "performance":
-                        performanceBentoWidget
                     case "alarm":
                         alarmCarouselWidget
                     case "pomodoro":
@@ -913,13 +986,49 @@ struct IslandView: View {
     // Weather removed
     
     var performanceBentoWidget: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                systemWidget(title: state.l("CPU"), value: "\(Int(state.cpuUsage))%", icon: "cpu", color: .green, progress: state.cpuUsage/100)
-                systemWidget(title: state.l("RAM"), value: "\(Int(state.ramUsage))%", icon: "memorychip", color: .blue, progress: state.ramUsage/100)
-                systemWidget(title: state.l("TEMP"), value: "\(Int(state.systemTemp))°C", icon: "thermometer", color: .orange, progress: (state.systemTemp - 30)/70)
-                systemWidget(title: state.l("SSD"), value: state.diskFree, icon: "internaldrive.fill", color: .purple, progress: state.diskUsedPercentage)
+        VStack(spacing: 0) {
+            telemetryRow(title: state.l("CPU"), value: "\(Int(state.cpuUsage))%", icon: "cpu", progress: state.cpuUsage / 100)
+            telemetryRow(title: state.l("Memoria"), value: "\(Int(state.ramUsage))%", icon: "memorychip", progress: state.ramUsage / 100)
+            telemetryRow(title: state.l("Temperatura"), value: "\(Int(state.systemTemp))°C", icon: "thermometer", progress: max(0, min(1, (state.systemTemp - 30) / 70)))
+            telemetryRow(title: state.l("Disco disponible"), value: state.diskFree, icon: "internaldrive", progress: state.diskUsedPercentage)
+        }
+    }
+
+    func telemetryRow(title: String, value: String, icon: String, progress: Double) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(pulseSignal)
+                .frame(width: 18)
+
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.white.opacity(0.70))
+                .lineLimit(1)
+
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.08))
+                    Rectangle()
+                        .fill(pulseSignal.opacity(0.88))
+                        .frame(width: geometry.size.width * CGFloat(max(0, min(1, progress))))
+                }
             }
+            .frame(height: 2)
+
+            Text(value)
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .foregroundColor(.white.opacity(0.94))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(width: 92, alignment: .trailing)
+        }
+        .frame(height: 36)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.white.opacity(0.06))
+                .frame(height: 1)
         }
     }
 
@@ -968,30 +1077,30 @@ struct IslandView: View {
                 VStack(spacing: 10) {
                     ZStack {
                         Circle()
-                            .fill(alarm.isEnabled ? Color.orange.opacity(0.2) : Color.white.opacity(0.1))
+                            .fill(alarm.isEnabled ? pulseSignal.opacity(0.14) : Color.white.opacity(0.08))
                             .frame(width: 36, height: 36)
                         Image(systemName: alarm.isEnabled ? "alarm.fill" : "alarm")
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(alarm.isEnabled ? .orange : .white.opacity(0.4))
+                            .foregroundColor(alarm.isEnabled ? pulseSignal : .white.opacity(0.4))
                         
                     }
                     
                     VStack(spacing: 2) {
                         Text(alarm.time.formatted(date: .omitted, time: .shortened))
-                            .font(.system(size: 14, weight: .black))
+                            .font(.system(size: 14, weight: .semibold, design: .monospaced))
                             .foregroundColor(alarm.isEnabled ? .white : .white.opacity(0.3))
                         Text(alarm.label.isEmpty ? state.l("Alarma") : alarm.label)
                             .font(.system(size: 8, weight: .bold))
-                            .foregroundColor(alarm.isEnabled ? .orange.opacity(0.8) : .white.opacity(0.2))
+                            .foregroundColor(alarm.isEnabled ? pulseSignal.opacity(0.8) : .white.opacity(0.2))
                             .lineLimit(1)
                     }
                 }
                 .frame(width: 100, height: 110)
-                .background(Color.white.opacity(alarm.isEnabled ? 0.08 : 0.04))
-                .cornerRadius(20)
+                .background(pulseRaised.opacity(alarm.isEnabled ? 0.72 : 0.38))
+                .cornerRadius(10)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(alarm.isEnabled ? Color.orange.opacity(0.3) : Color.white.opacity(0.05), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(alarm.isEnabled ? pulseSignal.opacity(0.24) : Color.clear, lineWidth: 1)
                 )
             }
             .buttonStyle(.plain)
@@ -1011,7 +1120,7 @@ struct IslandView: View {
                 }) {
                     Image(systemName: "pencil.circle.fill")
                         .font(.system(size: 16))
-                        .foregroundColor(.orange.opacity(0.9))
+                        .foregroundColor(pulseSignal.opacity(0.9))
                         .background(Color.black.clipShape(Circle()))
                 }
                 .buttonStyle(.plain)
@@ -1031,10 +1140,10 @@ struct IslandView: View {
     var pomodoroSquareWidget: some View {
         wideCircularWidget(
             icon: "timer",
-            color: .red,
-            title: state.l("ENFOQUE POMODORO"),
+            color: pulseSignal,
+            title: state.l("Enfoque"),
             value: state.formatPomodoroTime(),
-            subValue: state.isPomodoroRunning ? state.l("TRABAJANDO...") : state.l("DETENIDO"),
+            subValue: state.isPomodoroRunning ? state.l("En curso") : state.l("Detenido"),
             action: {
                 if state.isPomodoroRunning {
                     state.isPomodoroRunning = false
@@ -1049,26 +1158,22 @@ struct IslandView: View {
     func wideCircularWidget(icon: String, color: Color, title: String, value: String, subValue: String? = nil, action: (() -> Void)? = nil, onDelete: (() -> Void)? = nil) -> some View {
         Button(action: { action?() }) {
             HStack(spacing: 16) {
-                ZStack {
-                    Circle()
-                        .fill(color.opacity(0.12))
-                        .frame(width: 44, height: 44)
-                    Image(systemName: icon)
-                        .font(.system(size: 20, weight: .black))
-                        .foregroundColor(color)
-                }
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(pulseSignal)
+                    .frame(width: 24)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 9, weight: .black))
-                        .opacity(0.4)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.white.opacity(0.44))
                     Text(value)
-                        .font(.system(size: 20, weight: .black))
+                        .font(.system(size: 18, weight: .semibold, design: .monospaced))
                         .foregroundColor(.white)
                     if let sub = subValue {
                         Text(sub.uppercased())
-                            .font(.system(size: 8, weight: .black))
-                            .foregroundColor(color.opacity(0.7))
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(pulseSignal.opacity(0.78))
                             .lineLimit(1)
                     }
                 }
@@ -1088,14 +1193,9 @@ struct IslandView: View {
                     .font(.system(size: 12, weight: .bold))
                     .foregroundColor(.white.opacity(0.2))
             }
-            .padding(14)
+            .padding(.vertical, 12)
             .frame(maxWidth: .infinity)
-            .background(Color.white.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
-            )
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1) }
         }
         .buttonStyle(.plain)
     }
@@ -1107,28 +1207,25 @@ struct IslandView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 let options = [
-                    ("performance", "cpu", Color.green),
-                    ("alarm", "alarm", Color.orange),
-                    ("pomodoro", "timer", Color.red)
+                    ("performance", "cpu", pulseSignal),
+                    ("alarm", "alarm", pulseSignal),
+                    ("pomodoro", "timer", pulseSignal)
                 ]
                 
                 ForEach(options, id: \.0) { opt in
                     Button(action: { 
-                        withAnimation(.spring()) { state.toggleWidget(opt.0) }
+                        withAnimation(reduceMotion ? nil : .spring()) { state.toggleWidget(opt.0) }
                     }) {
                         VStack(spacing: 6) {
                             ZStack {
-                                Circle()
-                                    .fill(state.pinnedWidgets.contains(opt.0) ? opt.2 : Color.white.opacity(0.1))
-                                    .frame(width: 36, height: 36)
-                                
                                 Image(systemName: opt.1)
                                     .font(.system(size: 16))
-                                    .foregroundColor(state.pinnedWidgets.contains(opt.0) ? .black : .white)
+                                    .foregroundColor(state.pinnedWidgets.contains(opt.0) ? pulseSignal : .white.opacity(0.44))
+                                    .frame(width: 36, height: 30)
                             }
-                            Text(opt.0.uppercased())
-                                .font(.system(size: 7, weight: .black))
-                                .opacity(0.5)
+                            Text(opt.0)
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.white.opacity(0.52))
                         }
                     }
                     .buttonStyle(.plain)
@@ -1136,8 +1233,8 @@ struct IslandView: View {
             }
             .padding(15)
         }
-        .background(Color.white.opacity(0.02))
-        .clipShape(RoundedRectangle(cornerRadius: 15))
+        .background(pulseRaised.opacity(0.50))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
     
     func miniWidget(icon: String, color: Color, title: String, value: String) -> some View {
@@ -1198,8 +1295,8 @@ struct IslandView: View {
                 // Calendar Widget  
                 widgetCard(
                     icon: "calendar", 
-                    iconColor: .pink, 
-                    title: state.l("PRÓXIMO"), 
+                    iconColor: pulseSignal,
+                    title: state.l("Próximo"),
                     mainText: state.nextEvent?.title ?? state.l("Sin eventos"), 
                     subText: state.nextEvent?.startDate.formatted(date: .omitted, time: .shortened) ?? state.l("Calendario")
                 )
@@ -1211,16 +1308,16 @@ struct IslandView: View {
                     HStack {
                         Image(systemName: "camera.fill")
                             .font(.system(size: 12))
-                            .foregroundColor(state.accentColor)
-                        Text(state.l("VISTA PREVIA DE CÁMARA"))
-                            .font(.system(size: 9, weight: .black))
+                            .foregroundColor(pulseSignal)
+                        Text(state.l("Vista previa de cámara"))
+                            .font(.system(size: 12, weight: .semibold))
                         Spacer()
                         
                         // ON/OFF Button
                         Button(action: { withAnimation { state.showCameraPreview.toggle() } }) {
                             Text(state.showCameraPreview ? "ON" : "OFF")
                                 .font(.system(size: 8, weight: .black))
-                                .foregroundColor(state.showCameraPreview ? .green : .white.opacity(0.4))
+                                .foregroundColor(state.showCameraPreview ? pulseSignal : .white.opacity(0.4))
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 3)
                                 .background(Color.white.opacity(0.1))
@@ -1229,9 +1326,8 @@ struct IslandView: View {
                         .buttonStyle(.plain)
                         
                         Circle()
-                            .fill(state.showCameraPreview ? Color.green : Color.red)
+                            .fill(state.showCameraPreview ? pulseSignal : Color.white.opacity(0.24))
                             .frame(width: 6, height: 6)
-                            .shadow(color: state.showCameraPreview ? .green : .red, radius: 4)
                     }
                     .padding(.horizontal, 4)
                     
@@ -1254,16 +1350,10 @@ struct IslandView: View {
                         }
                     }
                     .frame(height: 140)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
-                .padding(12)
-                .background(Color.white.opacity(0.03))
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                )
+                .padding(.vertical, 12)
+                .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1) }
             }
             
 
@@ -1284,9 +1374,9 @@ struct IslandView: View {
         HStack {
             Image(systemName: "alarm.fill")
                 .font(.system(size: 12))
-                .foregroundColor(.orange)
-            Text(state.l("ALARMAS"))
-                .font(.system(size: 9, weight: .black))
+                .foregroundColor(pulseSignal)
+            Text(state.l("Alarmas"))
+                .font(.system(size: 12, weight: .semibold))
             Spacer()
             
             Button(action: { withAnimation { isAddingAlarm.toggle() } }) {
@@ -1309,15 +1399,15 @@ struct IslandView: View {
                 TextField(state.l("Etiqueta"), text: $newAlarmLabel)
                     .textFieldStyle(PlainTextFieldStyle())
                     .padding(6)
-                    .background(Color.white.opacity(0.1))
-                    .cornerRadius(6)
+                    .background(pulseRaised)
+                    .cornerRadius(8)
             }
             
             alarmRepeatDaysSelector
             alarmSaveButton
         }
         .padding(10)
-        .background(Color.white.opacity(0.05))
+        .background(pulseRaised.opacity(0.60))
         .cornerRadius(10)
     }
     
@@ -1328,7 +1418,7 @@ struct IslandView: View {
                 Text(dayName)
                     .font(.system(size: 8, weight: .bold))
                     .frame(width: 20, height: 20)
-                    .background(selectedRepeatDays.contains(day) ? Color.orange : Color.white.opacity(0.1))
+                    .background(selectedRepeatDays.contains(day) ? pulseSignal : Color.white.opacity(0.1))
                     .foregroundColor(selectedRepeatDays.contains(day) ? .black : .white)
                     .clipShape(Circle())
                     .onTapGesture {
@@ -1621,11 +1711,13 @@ struct IslandView: View {
                         .foregroundColor(state.accentColor)
                 }
                 
-                Text(state.pomodoroMode == .work ? "DESCANSO LISTO" : "ENFOQUE LISTO")
+                Text(state.pomodoroMode == .work ? state.l("ENFOQUE LISTO") : state.l("DESCANSO LISTO"))
                     .font(.system(size: 11, weight: .black))
                     .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-            .frame(height: 36)
+            .frame(height: 32)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             
             // Left: Stop button - Lowered
@@ -1639,7 +1731,7 @@ struct IslandView: View {
                 Spacer()
             }
             .padding(.horizontal, 12)
-            .frame(height: 36)
+            .frame(height: 32)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             
             // Right: Expand hint - Lowered
@@ -1650,7 +1742,7 @@ struct IslandView: View {
                     .foregroundColor(.white.opacity(0.2))
             }
             .padding(.horizontal, 16)
-            .frame(height: 36)
+            .frame(height: 32)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1663,180 +1755,144 @@ struct IslandView: View {
     }
     
     func widgetCard(icon: String, iconColor: Color, title: String, mainText: String, subText: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.system(size: 14))
-                    .foregroundColor(iconColor)
-                Spacer()
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(pulseSignal)
+                .frame(width: 22)
+
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 9, weight: .black))
-                    .foregroundColor(.white.opacity(0.4))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(0.44))
+                Text(mainText)
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(1)
             }
-            
-            Text(mainText)
-                .font(.system(size: 20, weight: .black))
-                .lineLimit(1)
-            
+
+            Spacer()
+
             Text(subText)
-                .font(.system(size: 9, weight: .bold))
-                .foregroundColor(.white.opacity(0.4))
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundColor(.white.opacity(0.52))
         }
-        .padding(16)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.03))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.05), lineWidth: 1))
+        .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1) }
     }
     
     // MARK: - Media Tab
     var dashboardMediaView: some View {
-        VStack(spacing: 16) {
-            // Now Playing Card
-            HStack(spacing: 16) {
-                // Album Art
+        VStack(spacing: 18) {
+            HStack(spacing: 14) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(LinearGradient(colors: [.purple, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 72, height: 72)
-                        .shadow(color: .purple.opacity(0.4), radius: 12)
-                    
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(pulseRaised)
+
                     if let artwork = state.trackArtwork {
                         Image(nsImage: artwork)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(width: 72, height: 72)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     } else {
                         Image(systemName: "music.note")
-                            .font(.system(size: 28))
-                            .foregroundColor(.white)
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundColor(pulseSignal)
                     }
                 }
-                
-                // Song Info + Controls
+                .frame(width: 58, height: 58)
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text(state.songTitle.isEmpty ? state.l("No reproduciendo") : state.songTitle)
-                        .font(.system(size: 16, weight: .black))
+                        .font(.system(size: 18, weight: .semibold))
                         .lineLimit(1)
-                    
-                    Text("\(state.artistName) • \(state.currentPlayer)")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white.opacity(0.4))
-                        .textCase(.uppercase)
+
+                    Text(state.artistName.isEmpty ? state.currentPlayer : "\(state.artistName) · \(state.currentPlayer)")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white.opacity(0.48))
                         .lineLimit(1)
-                    
-                    Spacer().frame(height: 8)
-                    
-                    // Playback Controls
-                    HStack(spacing: 16) {
-                        Button(action: { state.previousTrack() }) {
-                            Image(systemName: "backward.fill")
-                                .font(.system(size: 16))
-                                .foregroundColor(.white.opacity(0.5))
-                        }
-                        .buttonStyle(.plain)
-                        
-                        Button(action: { state.musicControl("playpause") }) {
-                            Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
-                                .font(.system(size: 18))
-                                .foregroundColor(.black)
-                                .frame(width: 36, height: 36)
-                                .background(Color.white)
-                                .clipShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        
-                        Button(action: { state.nextTrack() }) {
-                            Image(systemName: "forward.fill")
-                                .font(.system(size: 16))
-                                .foregroundColor(.white.opacity(0.5))
-                        }
-                        .buttonStyle(.plain)
-                    }
                 }
-                
+
                 Spacer()
-                
-                // Audio Visualizer
-                MusicWaveform(isPlaying: state.isPlaying, color: .orange, barCount: 5, maxHeight: 32)
-                    .padding(10)
-                    .background(Color.black.opacity(0.4))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                MusicWaveform(isPlaying: state.isPlaying, color: pulseSignal, barCount: 9, maxHeight: 26)
             }
-            .padding(18)
-            .background(Color.white.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 28).stroke(Color.white.opacity(0.08), lineWidth: 1))
-            
-            // System Volume
-            VStack(alignment: .leading, spacing: 6) {
+
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.10))
+                    Rectangle()
+                        .fill(pulseSignal)
+                        .frame(width: max(0, min(geometry.size.width, geometry.size.width * CGFloat(state.trackPosition / max(1, state.trackDuration)))))
+                }
+            }
+            .frame(height: 2)
+
+            HStack(spacing: 22) {
+                Button(action: { state.previousTrack() }) {
+                    Image(systemName: "backward.fill")
+                }
+
+                Button(action: { state.musicControl("playpause") }) {
+                    Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.black)
+                        .frame(width: 42, height: 36)
+                        .background(pulseSignal)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+
+                Button(action: { state.nextTrack() }) {
+                    Image(systemName: "forward.fill")
+                }
+
+                Spacer()
+
                 HStack {
                     Image(systemName: "speaker.wave.2.fill")
-                        .font(.system(size: 10))
-                        .opacity(0.4)
-                    Spacer()
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.44))
+
+                    Slider(value: Binding(
+                        get: { Float(state.volume) },
+                        set: { state.setSystemVolume($0) }
+                    ), in: 0...1)
+                    .tint(pulseSignal)
+                    .frame(width: 150)
+
                     Text("\(Int(state.volume * 100))%")
-                        .font(.system(size: 8, weight: .black))
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.64))
+                        .frame(width: 34, alignment: .trailing)
                 }
-                Slider(value: Binding(
-                    get: { Float(state.volume) },
-                    set: { state.setSystemVolume($0) }
-                ), in: 0...1)
-                .accentColor(state.accentColor)
             }
-            .padding(14)
-            .background(Color.white.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .buttonStyle(.plain)
+            .foregroundColor(.white.opacity(0.66))
         }
+        .padding(.vertical, 8)
     }
     
     
     // MARK: - Focus Tab (Pomodoro)
     var dashboardFocusView: some View {
-        VStack(spacing: 20) {
-            // Circular Timer
-            ZStack {
-                Circle()
-                    .stroke(Color.white.opacity(0.08), lineWidth: 8)
-                    .frame(width: 120, height: 120)
-                
-                Circle()
-                    .trim(from: 0, to: CGFloat(state.pomodoroRemaining) / CGFloat(state.pomodoroMode == .work ? 25 * 60 : 5 * 60))
-                    .stroke(state.accentColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                    .frame(width: 120, height: 120)
-                    .rotationEffect(.degrees(-90))
-                    .shadow(color: state.accentColor.opacity(0.5), radius: 8)
-                
-                VStack(spacing: 2) {
+        VStack(spacing: 18) {
+            HStack(alignment: .bottom, spacing: 16) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(state.pomodoroMode == .work ? state.l("Enfoque") : state.l("Descanso"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(pulseSignal)
+
                     Text(state.formatPomodoroTime())
-                        .font(.system(size: 24, weight: .black, design: .rounded))
-                    Text(state.l("MINUTOS"))
-                        .font(.system(size: 8, weight: .black))
-                        .foregroundColor(.white.opacity(0.4))
+                        .font(.system(size: 42, weight: .semibold, design: .monospaced))
+                        .tracking(-1.4)
+                        .monospacedDigit()
                 }
-            }
-            
-            // Control Buttons
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(state.l("NOMBRE DE LA SESIÓN"))
-                        .font(.system(size: 8, weight: .black))
-                        .foregroundColor(.white.opacity(0.4))
-                    
-                    TextField(state.l("Focus..."), text: $state.pomodoroLabel)
-                        .textFieldStyle(PlainTextFieldStyle())
-                        .font(.system(size: 14, weight: .bold))
-                        .padding(10)
-                        .background(Color.white.opacity(0.05))
-                        .cornerRadius(12)
-                        .frame(width: 150)
-                }
-                
+
                 Spacer()
-                
-                Button(action: { 
-                    withAnimation { 
+
+                Button(action: {
+                    withAnimation {
                         if state.isPomodoroRunning {
                             state.pausePomodoro()
                         } else {
@@ -1845,121 +1901,130 @@ struct IslandView: View {
                     }
                 }) {
                     Text(state.isPomodoroRunning ? state.l("PAUSAR") : state.l("INICIAR"))
-                        .font(.system(size: 10, weight: .black))
-                        .foregroundColor(state.isPomodoroRunning ? .red : .black)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(state.isPomodoroRunning ? Color.red.opacity(0.15) : Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                        .foregroundColor(state.isPomodoroRunning ? .white : .black)
+                        .frame(width: 108, height: 40)
+                        .background(state.isPomodoroRunning ? Color.red.opacity(0.72) : pulseSignal)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                
+
                 Button(action: { state.resetPomodoro() }) {
                     Image(systemName: "arrow.counterclockwise")
-                        .font(.system(size: 16))
-                        .foregroundColor(.white.opacity(0.5))
-                        .frame(width: 44, height: 44)
-                        .background(Color.white.opacity(0.05))
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.62))
+                        .frame(width: 40, height: 40)
+                        .background(pulseRaised)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 20)
-            
-            // Customizable Time
+
+            GeometryReader { geometry in
+                let total = state.pomodoroMode == .work ? state.workDuration : state.breakDuration
+                let ratio = total > 0 ? 1 - (state.pomodoroRemaining / total) : 0
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.10))
+                    Rectangle()
+                        .fill(pulseSignal)
+                        .frame(width: geometry.size.width * CGFloat(max(0, min(1, ratio))))
+                }
+            }
+            .frame(height: 3)
+
+            HStack(spacing: 12) {
+                Text(state.l("Sesión"))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(0.44))
+                    .frame(width: 54, alignment: .leading)
+
+                TextField(state.l("¿En qué vas a trabajar?"), text: $state.pomodoroLabel)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12, weight: .medium))
+                    .padding(.horizontal, 10)
+                    .frame(height: 34)
+                    .background(pulseRaised)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+
             if !state.isPomodoroRunning {
-                VStack(spacing: 12) {
-                    // Mode Selector for Configuration
-                    HStack(spacing: 8) {
+                VStack(spacing: 14) {
+                    HStack(spacing: 6) {
                         Button(action: { state.pomodoroMode = .work; state.pomodoroRemaining = state.workDuration }) {
                             Text(state.l("TRABAJO"))
-                                .font(.system(size: 8, weight: .black))
+                                .font(.system(size: 10, weight: .semibold))
                                 .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(state.pomodoroMode == .work ? state.accentColor.opacity(0.2) : Color.white.opacity(0.05))
-                                .foregroundColor(state.pomodoroMode == .work ? state.accentColor : .white.opacity(0.5))
+                                .frame(height: 28)
+                                .background(state.pomodoroMode == .work ? pulseSignal.opacity(0.14) : Color.clear)
+                                .foregroundColor(state.pomodoroMode == .work ? pulseSignal : .white.opacity(0.44))
                                 .clipShape(Capsule())
-                                .overlay(Capsule().stroke(state.pomodoroMode == .work ? state.accentColor.opacity(0.5) : Color.clear, lineWidth: 1))
                         }
                         .buttonStyle(.plain)
-                        
+
                         Button(action: { state.pomodoroMode = .shortBreak; state.pomodoroRemaining = state.breakDuration }) {
                             Text(state.l("DESCANSO"))
-                                .font(.system(size: 8, weight: .black))
+                                .font(.system(size: 10, weight: .semibold))
                                 .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(state.pomodoroMode == .shortBreak ? state.accentColor.opacity(0.2) : Color.white.opacity(0.05))
-                                .foregroundColor(state.pomodoroMode == .shortBreak ? state.accentColor : .white.opacity(0.5))
+                                .frame(height: 28)
+                                .background(state.pomodoroMode == .shortBreak ? pulseSignal.opacity(0.14) : Color.clear)
+                                .foregroundColor(state.pomodoroMode == .shortBreak ? pulseSignal : .white.opacity(0.44))
                                 .clipShape(Capsule())
-                                .overlay(Capsule().stroke(state.pomodoroMode == .shortBreak ? state.accentColor.opacity(0.5) : Color.clear, lineWidth: 1))
                         }
                         .buttonStyle(.plain)
-                        
+
                         Spacer()
-                    }
-                    .padding(.horizontal, 22)
-                    
-                    HStack(spacing: 8) {
+
                         ForEach([15, 25, 45, 60], id: \.self) { mins in
                             Button(action: { state.setPomodoroDuration(mins) }) {
                                 Text("\(mins)m")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 8)
-                                    .background(state.pomodoroRemaining == Double(mins * 60) ? state.accentColor : Color.white.opacity(0.1))
-                                    .foregroundColor(state.pomodoroRemaining == Double(mins * 60) ? .black : .white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                    .frame(width: 42, height: 28)
+                                    .background(state.pomodoroRemaining == Double(mins * 60) ? pulseSignal : pulseRaised)
+                                    .foregroundColor(state.pomodoroRemaining == Double(mins * 60) ? .black : .white.opacity(0.64))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                             }
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal, 20)
-                    
-                    // Custom Timer Slider
-                    VStack(spacing: 8) {
-                        HStack {
-                            Text(state.l("PERSONALIZADO:"))
-                                .font(.system(size: 8, weight: .black))
-                                .foregroundColor(.white.opacity(0.4))
-                            Spacer()
-                            Text("\(Int(state.customTimerMinutes)) \(state.l("MINUTOS"))")
-                                .font(.system(size: 10, weight: .bold))
+
+                    HStack(spacing: 12) {
+                        Text(state.l("Personalizado"))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.white.opacity(0.44))
+
+                        Slider(value: $state.customTimerMinutes, in: 1...120, step: 1)
+                            .tint(pulseSignal)
+
+                        Text("\(Int(state.customTimerMinutes)) min")
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .frame(width: 54, alignment: .trailing)
+
+                        Button(action: { state.setPomodoroDuration(Int(state.customTimerMinutes)) }) {
+                            Text(state.l("Fijar"))
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(pulseSignal)
+                                .frame(width: 46, height: 28)
+                                .background(pulseSignal.opacity(0.10))
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         }
-                        .padding(.horizontal, 22)
-                        
-                        HStack(spacing: 12) {
-                            Slider(value: $state.customTimerMinutes, in: 1...120, step: 1)
-                                .accentColor(state.accentColor)
-                            
-                            Button(action: { state.setPomodoroDuration(Int(state.customTimerMinutes)) }) {
-                                Text(state.l("FIJAR"))
-                                    .font(.system(size: 9, weight: .black))
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(state.accentColor.opacity(0.15))
-                                    .foregroundColor(state.accentColor)
-                                    .clipShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .padding(.horizontal, 20)
+                        .buttonStyle(.plain)
                     }
                 }
             }
-            
-            // Focus Status
+
             HStack(spacing: 6) {
-                Image(systemName: "eye")
-                    .font(.system(size: 10))
-                Text(state.l("BLOQUEO DE DISTRACCIONES:"))
-                    .font(.system(size: 9, weight: .bold))
-                Text(state.isPomodoroRunning ? state.l("ACTIVO") : state.l("INACTIVO"))
-                    .font(.system(size: 9, weight: .black))
-                    .foregroundColor(state.isPomodoroRunning ? .green : .white.opacity(0.4))
+                Circle()
+                    .fill(state.isPomodoroRunning ? pulseSignal : Color.white.opacity(0.24))
+                    .frame(width: 5, height: 5)
+                Text(state.isPomodoroRunning ? state.l("Bloqueo de distracciones activo") : state.l("Bloqueo de distracciones inactivo"))
+                    .font(.system(size: 10, weight: .medium))
             }
-            .foregroundColor(.white.opacity(0.4))
+            .foregroundColor(.white.opacity(0.44))
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 20)
+        .padding(.vertical, 10)
     }
     
     // MARK: - Connections Tab
@@ -1976,24 +2041,19 @@ struct IslandView: View {
             wifiHeader
             wifiStatsRow
         }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.blue.opacity(0.1))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.blue.opacity(0.2), lineWidth: 1)
-        )
+        .padding(.vertical, 14)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+        }
     }
 
     var wifiHeader: some View {
         HStack(alignment: .center) {
             Image(systemName: "wifi")
                 .font(.system(size: 18))
-                .foregroundColor(state.wifiSignal > -60 ? .green : (state.wifiSignal > -80 ? .yellow : .red))
+                .foregroundColor(pulseSignal)
             Text(state.l(state.wifiSSID))
-                .font(.system(size: 16, weight: .black))
+                .font(.system(size: 16, weight: .semibold))
             
             wifiTooltipIcon
             
@@ -2042,11 +2102,11 @@ struct IslandView: View {
         HStack(spacing: 20) {
             // Signal Stat
             VStack(alignment: .leading) {
-                Text(state.l("SEÑAL"))
-                    .font(.system(size: 8, weight: .black))
-                    .opacity(0.4)
+                Text(state.l("Señal"))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(0.44))
                 Text("\(state.wifiSignal) dBm")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
             }
             .contentShape(Rectangle())
             .onHover { hovering in
@@ -2078,11 +2138,11 @@ struct IslandView: View {
             
             // Speed Stat
             VStack(alignment: .leading) {
-                Text(state.l("VELOCIDAD"))
-                    .font(.system(size: 8, weight: .black))
-                    .opacity(0.4)
+                Text(state.l("Velocidad"))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(0.44))
                 Text("\(state.wifiSpeed) Mbps")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
             }
             .contentShape(Rectangle())
             .onHover { hovering in
@@ -2120,9 +2180,9 @@ struct IslandView: View {
             }) {
                 Image(systemName: "gear")
                     .font(.system(size: 14))
-                    .foregroundColor(.blue)
+                    .foregroundColor(pulseSignal)
                     .padding(8)
-                    .background(Color.blue.opacity(0.1))
+                    .background(pulseSignal.opacity(0.10))
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
@@ -2131,9 +2191,9 @@ struct IslandView: View {
     
     var bluetoothList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(state.l("DISPOSITIVOS BLUETOOTH"))
-                .font(.system(size: 9, weight: .black))
-                .opacity(0.4)
+            Text(state.l("Dispositivos Bluetooth"))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.white.opacity(0.76))
                 .padding(.horizontal, 4)
             
             if state.bluetoothDevices.isEmpty {
@@ -2146,7 +2206,7 @@ struct IslandView: View {
                 ForEach(state.bluetoothDevices) { device in
                     HStack {
                         Image(systemName: "dot.radiowaves.left.and.right")
-                            .foregroundColor(.blue)
+                            .foregroundColor(pulseSignal)
                         Text(device.name)
                             .font(.system(size: 12, weight: .bold))
                         
@@ -2161,9 +2221,10 @@ struct IslandView: View {
                             .foregroundColor(batt < 20 ? .red : .green)
                         }
                     }
-                    .padding(14)
-                    .background(Color.white.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(.vertical, 12)
+                    .overlay(alignment: .bottom) {
+                        Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1)
+                    }
                 }
             }
         }
@@ -2173,13 +2234,13 @@ struct IslandView: View {
     var dashboardClipboardView: some View {
         VStack(spacing: 16) {
             HStack {
-                Text(state.l("HISTORIAL DE PORTAPAPELES"))
-                    .font(.system(size: 9, weight: .black))
-                    .opacity(0.4)
+                Text(state.l("Historial del portapapeles"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.76))
                 Spacer()
                 Button(action: { state.clipboardHistory.removeAll() }) {
-                    Text(state.l("LIMPIAR"))
-                        .font(.system(size: 8, weight: .black))
+                    Text(state.l("Limpiar"))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.red.opacity(0.6))
                 }
                 .buttonStyle(.plain)
@@ -2202,7 +2263,7 @@ struct IslandView: View {
                             HStack {
                                 Image(systemName: "doc.on.doc")
                                     .font(.system(size: 14))
-                                    .foregroundColor(state.accentColor)
+                                    .foregroundColor(pulseSignal)
                                 
                                 Text(item)
                                     .font(.system(size: 11, weight: .medium))
@@ -2215,9 +2276,10 @@ struct IslandView: View {
                                     .font(.system(size: 10))
                                     .opacity(0.3)
                             }
-                            .padding(12)
-                            .background(Color.white.opacity(0.03))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .padding(.vertical, 12)
+                            .overlay(alignment: .bottom) {
+                                Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1)
+                            }
                         }
                         .buttonStyle(.plain)
                     }
@@ -2228,11 +2290,10 @@ struct IslandView: View {
 
     // MARK: - Settings Tab
     var dashboardSettingsView: some View {
-        VStack(spacing: 12) {
-            // Background Style
+        VStack(spacing: 0) {
             HStack {
-                Text(state.l("ESTILO"))
-                    .font(.system(size: 12, weight: .bold))
+                Text(state.l("Estilo de superficie"))
+                    .font(.system(size: 11, weight: .medium))
                 Spacer()
                 Picker("", selection: $state.backgroundStyle) {
                     ForEach(BackgroundStyle.allCases, id: \.self) { style in
@@ -2240,16 +2301,15 @@ struct IslandView: View {
                     }
                 }
                 .labelsHidden()
-                .frame(width: 120)
+                .controlSize(.small)
+                .frame(width: 108)
             }
-            .padding(12)
-            .background(Color.white.opacity(0.03))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .frame(height: 44)
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1) }
             
-            // Language Selection
             HStack {
-                Text(state.l("IDIOMA"))
-                    .font(.system(size: 12, weight: .bold))
+                Text(state.l("Idioma"))
+                    .font(.system(size: 11, weight: .medium))
                 Spacer()
                 Picker("", selection: $state.language) {
                     ForEach(AppLanguage.allCases, id: \.self) { lang in
@@ -2257,68 +2317,51 @@ struct IslandView: View {
                     }
                 }
                 .labelsHidden()
-                .frame(width: 120)
+                .controlSize(.small)
+                .frame(width: 108)
             }
-            .padding(12)
-            .background(Color.white.opacity(0.03))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .frame(height: 44)
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1) }
             
             
-            // Solid Background Color Picker (Visible only if style is solid)
             if state.backgroundStyle == .solid {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(state.l("COLOR DEL FONDO (SOLIDO)"))
-                        .font(.system(size: 9, weight: .black))
-                        .opacity(0.4)
-                    
-                    HStack {
-                        ColorPicker("", selection: $state.islandColor)
-                            .labelsHidden()
-                        Spacer()
-                        Text(state.l("Personalizado"))
-                            .font(.system(size: 11, weight: .bold))
-                            .opacity(0.6)
-                    }
+                HStack {
+                    Text(state.l("Color de fondo"))
+                        .font(.system(size: 11, weight: .medium))
+
+                    Spacer()
+
+                    ColorPicker("", selection: $state.islandColor)
+                        .labelsHidden()
+                        .controlSize(.small)
                 }
-                .padding(12)
-                .background(Color.white.opacity(0.03))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .frame(height: 44)
+                .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1) }
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
             
-            // Accent Color
-            VStack(alignment: .leading, spacing: 10) {
-                Text(state.l("COLOR DE ACENTO"))
-                    .font(.system(size: 9, weight: .black))
-                    .opacity(0.4)
-                
-                HStack {
-                    ColorPicker("", selection: $state.accentColor)
-                        .labelsHidden()
-                    Spacer()
-                    Text(state.l("Personalizado"))
-                        .font(.system(size: 11, weight: .bold))
-                        .opacity(0.6)
-                }
-            }
-            .padding(12)
-            .background(Color.white.opacity(0.03))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            
+            HStack {
+                Text(state.l("Color de señal"))
+                    .font(.system(size: 11, weight: .medium))
 
-            
+                Spacer()
+
+                ColorPicker("", selection: $state.accentColor)
+                    .labelsHidden()
+                    .controlSize(.small)
+            }
+            .frame(height: 44)
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1) }
             
             Button(action: { state.collapse() }) {
                 HStack {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.red.opacity(0.6))
-                    Text(state.l("Cerrar Island"))
-                        .font(.system(size: 12, weight: .bold))
+                    Text(state.l("Cerrar Pulse"))
+                        .font(.system(size: 11, weight: .medium))
                     Spacer()
                 }
-                .padding(14)
-                .background(Color.white.opacity(0.03))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .frame(height: 44)
             }
             .buttonStyle(.plain)
         }
@@ -2326,17 +2369,13 @@ struct IslandView: View {
     
     func settingsRow(icon: String, title: String, value: String, color: Color) -> some View {
         HStack {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(color.opacity(0.15))
-                    .frame(width: 32, height: 32)
-                Image(systemName: icon)
-                    .font(.system(size: 14))
-                    .foregroundColor(color)
-            }
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(pulseSignal)
+                .frame(width: 24)
             
             Text(title)
-                .font(.system(size: 12, weight: .bold))
+                .font(.system(size: 12, weight: .medium))
             
             Spacer()
             
@@ -2348,10 +2387,8 @@ struct IslandView: View {
                 .font(.system(size: 10))
                 .foregroundColor(.white.opacity(0.2))
         }
-        .padding(12)
-        .background(Color.white.opacity(0.03))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.05), lineWidth: 1))
+        .frame(height: 44)
+        .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1) }
     }
 
     var dashboardAppGridContent: some View {
@@ -2677,7 +2714,7 @@ struct IslandView: View {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(state.accentColor)
                     .frame(width: 3, height: state.bars[i])
-                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: state.bars[i])
+                    .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.6), value: state.bars[i])
             }
         }
         .padding(.horizontal, 12)
@@ -2719,115 +2756,101 @@ struct IslandView: View {
     }
 
     var expandedMusicContent: some View {
-        VStack(spacing: 22) {
-            // Top Section: Info
-            HStack(spacing: 16) {
+        VStack(spacing: 13) {
+            HStack(spacing: 12) {
                 Button(action: { state.showDashboard() }) {
                     Image(systemName: "chevron.left.circle.fill")
-                        .font(.system(size: 24))
+                        .font(.system(size: 19))
                         .foregroundStyle(.secondary)
                         .symbolRenderingMode(.hierarchical)
                 }
                 .buttonStyle(.plain)
                 
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
                         .fill(state.accentColor.opacity(0.15))
-                        .frame(width: 64, height: 64)
+                        .frame(width: 50, height: 50)
                     
                     if let artwork = state.trackArtwork {
                         Image(nsImage: artwork)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(width: 64, height: 64)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .shadow(color: state.accentColor.opacity(0.3), radius: 10, y: 5)
+                            .frame(width: 50, height: 50)
+                            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                            .shadow(color: state.accentColor.opacity(0.25), radius: 7, y: 3)
                     } else {
                         Image(systemName: "music.note")
-                            .font(.system(size: 24))
+                            .font(.system(size: 20))
                             .foregroundStyle(state.accentColor)
                     }
                 }
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(state.songTitle)
-                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
                         .lineLimit(1)
                     Text(state.artistName)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 
                 Spacer()
                 
-                MusicWaveform(isPlaying: state.isPlaying, color: state.accentColor, barCount: 4, maxHeight: 20)
+                MusicWaveform(isPlaying: state.isPlaying, color: state.accentColor, barCount: 3, maxHeight: 15)
             }
-            .padding(.top, 10)
             
-            // Middle Section: Progress
-            VStack(spacing: 8) {
+            VStack(spacing: 5) {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule()
                             .fill(Color.white.opacity(0.1))
-                            .frame(height: 6)
+                            .frame(height: 4)
                         Capsule()
                             .fill(LinearGradient(colors: [state.accentColor, state.accentColor.opacity(0.7)], startPoint: .leading, endPoint: .trailing))
-                            .frame(width: max(0, min(geo.size.width, (geo.size.width * (state.trackPosition / max(1, state.trackDuration))))), height: 6)
-                            .shadow(color: state.accentColor.opacity(0.3), radius: 4)
+                            .frame(width: max(0, min(geo.size.width, (geo.size.width * (state.trackPosition / max(1, state.trackDuration))))), height: 4)
                     }
                 }
-                .frame(height: 6)
+                .frame(height: 4)
                 
                 HStack {
                     Text(formatTime(state.trackPosition))
                     Spacer()
                     Text("-" + formatTime(max(0, state.trackDuration - state.trackPosition)))
                 }
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.secondary)
             }
             
-            // Bottom Section: Controls
-            ZStack {
-                // Left: Volume
-                HStack {
-                    HStack(spacing: 8) {
-                        Image(systemName: "speaker.wave.1.fill")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                        
-                        Capsule()
-                            .fill(Color.white.opacity(0.1))
-                            .frame(width: 60, height: 4)
-                            .overlay(alignment: .leading) {
-                                GeometryReader { geo in
-                                    Capsule()
-                                        .fill(Color.white)
-                                        .frame(width: max(0, min(geo.size.width, geo.size.width * CGFloat(state.appVolume))), height: 4)
-                                }
-                            }
-                            .gesture(
-                                DragGesture(minimumDistance: 0)
-                                    .onChanged { gesture in
-                                        let percent = min(max(0, Float(gesture.location.x / 60)), 1)
-                                        state.setMusicVolume(percent)
-                                    }
-                            )
-                        
-                        Image(systemName: "speaker.wave.3.fill")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+            HStack {
+                Image(systemName: "speaker.wave.1.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+
+                Capsule()
+                    .fill(Color.white.opacity(0.1))
+                    .frame(width: 48, height: 3)
+                    .overlay(alignment: .leading) {
+                        GeometryReader { geo in
+                            Capsule()
+                                .fill(Color.white.opacity(0.85))
+                                .frame(width: max(0, min(geo.size.width, geo.size.width * CGFloat(state.appVolume))), height: 3)
+                        }
                     }
-                    Spacer()
-                }
-                
-                // Center: Main Controls
-                HStack(spacing: 30) {
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { gesture in
+                                let percent = min(max(0, Float(gesture.location.x / 48)), 1)
+                                state.setMusicVolume(percent)
+                            }
+                    )
+
+                Spacer()
+
+                HStack(spacing: 22) {
                     Button(action: { state.previousTrack() }) {
                         Image(systemName: "backward.fill")
-                            .font(.system(size: 22))
+                            .font(.system(size: 16))
                     }
                     .buttonStyle(.plain)
                     
@@ -2835,9 +2858,9 @@ struct IslandView: View {
                         ZStack {
                             Circle()
                                 .fill(Color.white)
-                                .frame(width: 54, height: 54)
+                                .frame(width: 42, height: 42)
                             Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
-                                .font(.system(size: 24))
+                                .font(.system(size: 18))
                                 .foregroundColor(.black)
                         }
                     }
@@ -2845,25 +2868,25 @@ struct IslandView: View {
                     
                     Button(action: { state.nextTrack() }) {
                         Image(systemName: "forward.fill")
-                            .font(.system(size: 22))
-                    }
-                    .buttonStyle(.plain)
-                }
-                
-                // Right: AirPlay
-                HStack {
-                    Spacer()
-                    Button(action: { state.openAirPlay() }) {
-                        Image(systemName: "airplayaudio")
                             .font(.system(size: 16))
-                            .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
                 }
+
+                Spacer()
+
+                Button(action: { state.openAirPlay() }) {
+                    Image(systemName: "airplayaudio")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
             }
-            .padding(.top, 5)
         }
-        .padding(25)
+        .padding(.horizontal, 20)
+        .padding(.top, state.hasNotch ? state.notchHeight + 10 : 12)
+        .padding(.bottom, 15)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             if let artwork = state.trackArtwork {
                 Image(nsImage: artwork)
