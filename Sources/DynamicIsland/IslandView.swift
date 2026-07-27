@@ -99,6 +99,7 @@ struct IslandView: View {
         .background(Color.clear)
         .frame(width: state.widthForMode(state.mode, isExpanded: state.isExpanded),
                height: state.heightForMode(state.mode, isExpanded: state.isExpanded))
+        .clipShape(islandMask)
         .onHover { hovering in
             state.isHovering = hovering
         }
@@ -184,9 +185,11 @@ struct IslandView: View {
             
             // Right: Battery info
             HStack(spacing: 8) {
-                Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.100")
-                    .font(.system(size: 14))
-                    .foregroundColor(state.batteryLevel < 20 ? .red : .green)
+                if state.hasInternalBattery {
+                    Image(systemName: state.isCharging ? "battery.100.bolt" : batteryIcon)
+                        .font(.system(size: 14))
+                        .foregroundColor(state.batteryLevel < 20 ? .red : .green)
+                }
             }
             .frame(width: 30, alignment: .trailing)
             .padding(.trailing, 15)
@@ -248,9 +251,11 @@ struct IslandView: View {
             Spacer()
             
             HStack(spacing: 8) {
-                Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.100")
-                    .font(.system(size: 14))
-                    .foregroundColor(state.batteryLevel < 20 ? .red : .green)
+                if state.hasInternalBattery {
+                    Image(systemName: state.isCharging ? "battery.100.bolt" : batteryIcon)
+                        .font(.system(size: 14))
+                        .foregroundColor(state.batteryLevel < 20 ? .red : .green)
+                }
             }
             .frame(width: 30, alignment: .trailing)
             .padding(.trailing, 15)
@@ -265,6 +270,9 @@ struct IslandView: View {
     
     private var islandCornerRadius: CGFloat {
         if state.isExpanded {
+            if state.isPomodoroRinging {
+                return 16
+            }
             return state.mode == .music ? 22 : 24
         } else {
             return 20
@@ -272,7 +280,11 @@ struct IslandView: View {
     }
 
     private var islandMask: some Shape {
-        let topRadius = state.isExpanded && !state.hasNotch ? islandCornerRadius : 0
+        // The normal compact island stays attached to the screen edge. Only an
+        // expanded surface without a physical notch rounds its upper corners.
+        let topRadius = state.isPomodoroRinging
+            ? 0
+            : (state.isExpanded && !state.hasNotch ? islandCornerRadius : 0)
 
         return UnevenRoundedRectangle(
             topLeadingRadius: topRadius,
@@ -281,6 +293,10 @@ struct IslandView: View {
             topTrailingRadius: topRadius,
             style: .continuous
         )
+    }
+
+    private var focusAlertAlignment: Alignment {
+        state.hasNotch ? .bottom : .center
     }
 
     var compactMusicContent: some View {
@@ -379,9 +395,11 @@ struct IslandView: View {
             Spacer()
             
             HStack(spacing: 8) {
-                Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.100")
-                    .font(.system(size: 14))
-                    .foregroundColor(state.batteryLevel < 20 ? .red : .green)
+                if state.hasInternalBattery {
+                    Image(systemName: state.isCharging ? "battery.100.bolt" : batteryIcon)
+                        .font(.system(size: 14))
+                        .foregroundColor(state.batteryLevel < 20 ? .red : .green)
+                }
             }
             .frame(width: 30, alignment: .trailing)
             .padding(.trailing, 15)
@@ -474,9 +492,11 @@ struct IslandView: View {
             Spacer()
             
             HStack(spacing: 8) {
-                Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.100")
-                    .font(.system(size: 14))
-                    .foregroundColor(state.batteryLevel < 20 ? .red : .green)
+                if state.hasInternalBattery {
+                    Image(systemName: state.isCharging ? "battery.100.bolt" : batteryIcon)
+                        .font(.system(size: 14))
+                        .foregroundColor(state.batteryLevel < 20 ? .red : .green)
+                }
             }
             .frame(width: 30, alignment: .trailing)
             .padding(.trailing, 15)
@@ -698,9 +718,11 @@ struct IslandView: View {
                         .foregroundColor(pulseSignal)
                     Text(state.wifiSSID.isEmpty ? "Wi‑Fi" : state.wifiSSID)
                         .lineLimit(1)
-                    Text("·")
-                    Image(systemName: state.isCharging ? "battery.100.bolt" : batteryIcon)
-                    Text("\(state.batteryLevel)%")
+                    if state.hasInternalBattery {
+                        Text("·")
+                        Image(systemName: state.isCharging ? "battery.100.bolt" : batteryIcon)
+                        Text("\(state.batteryLevel)%")
+                    }
                 }
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.white.opacity(0.62))
@@ -1595,49 +1617,48 @@ struct IslandView: View {
     }
 
     var ringingPomodoroOverlay: some View {
-        VStack(spacing: 20) {
-            // Gap for notch
-            Spacer().frame(height: state.hasNotch ? state.notchHeight + 20 : 40)
-            
-            if #available(macOS 15.0, *) {
-                Image(systemName: "timer")
-                    .font(.system(size: 44, weight: .bold))
-                    .foregroundColor(state.accentColor)
-                    .symbolEffect(.bounce, options: .repeating)
-            } else {
-                Image(systemName: "timer")
-                    .font(.system(size: 44, weight: .bold))
-                    .foregroundColor(state.accentColor)
-            }
-            
-            VStack(spacing: 8) {
+        ZStack {
+            VStack(spacing: 2) {
                 Text(state.pomodoroMode == .work ? state.l("DESCANSO TERMINADO") : state.l("ENFOQUE TERMINADO"))
-                    .font(.system(size: 10, weight: .black))
-                    .foregroundColor(state.accentColor.opacity(0.8))
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.52))
+                    .lineLimit(1)
                 Text(state.pomodoroMode == .work ? state.l("¡A trabajar!") : state.l("¡Buen trabajo!"))
-                    .font(.system(size: 24, weight: .black, design: .rounded))
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.white)
-                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
             }
-            .padding(.horizontal, 40)
-            
-            Spacer()
-            
-            Button(action: { state.stopPomodoroAlarm() }) {
-                Text(state.l("LISTO"))
-                    .font(.system(size: 14, weight: .black))
-                    .foregroundColor(.black)
-                    .padding(.horizontal, 40)
-                    .padding(.vertical, 14)
-                    .background(state.accentColor)
-                    .cornerRadius(22)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: 168)
+
+            HStack {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(pulseSignal)
+
+                Spacer()
+
+                Button(action: { state.stopPomodoroAlarm() }) {
+                    Text(state.l("LISTO"))
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.black)
+                        .frame(width: 64, height: 32)
+                        .background(pulseSignal)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
-            .padding(.bottom, 40)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 16)
+        .frame(height: 64)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: focusAlertAlignment)
         .background(Color.black)
         .clipShape(islandMask)
+        .overlay {
+            islandMask
+                .stroke(Color.white.opacity(0.34), lineWidth: 1)
+                .padding(0.5)
+        }
     }
 
     var compactRingingAlarmOverlay: some View {
@@ -1718,7 +1739,7 @@ struct IslandView: View {
                     .minimumScaleFactor(0.8)
             }
             .frame(height: 32)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: focusAlertAlignment)
             
             // Left: Stop button - Lowered
             HStack {
@@ -1732,7 +1753,7 @@ struct IslandView: View {
             }
             .padding(.horizontal, 12)
             .frame(height: 32)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: focusAlertAlignment)
             
             // Right: Expand hint - Lowered
             HStack {
@@ -1743,11 +1764,16 @@ struct IslandView: View {
             }
             .padding(.horizontal, 16)
             .frame(height: 32)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: focusAlertAlignment)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black)
         .clipShape(islandMask)
+        .overlay {
+            islandMask
+                .stroke(Color.white.opacity(0.34), lineWidth: 1)
+                .padding(0.5)
+        }
         .contentShape(Rectangle())
         .onTapGesture {
             state.expand()
@@ -2424,10 +2450,10 @@ struct IslandView: View {
             VStack(spacing: 12) {
                 // Main Computer info
                 deviceRow(
-                    name: "MacBook Pro",
+                    name: state.hasInternalBattery ? "MacBook" : "Mac",
                     detail: state.l("Sistema macOS"),
-                    icon: "laptopcomputer",
-                    battery: state.batteryLevel,
+                    icon: state.hasInternalBattery ? "laptopcomputer" : "macmini",
+                    battery: state.hasInternalBattery ? state.batteryLevel : nil,
                     isCharging: state.isCharging
                 )
                 
@@ -2557,7 +2583,7 @@ struct IslandView: View {
         }
     }
 
-    func deviceRow(name: String, detail: String, icon: String, battery: Int, isCharging: Bool) -> some View {
+    func deviceRow(name: String, detail: String, icon: String, battery: Int?, isCharging: Bool) -> some View {
         HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -2578,23 +2604,25 @@ struct IslandView: View {
             
             Spacer()
             
-            HStack(spacing: 6) {
-                if isCharging {
-                    Image(systemName: "bolt.fill")
-                        .foregroundColor(.green)
-                        .font(.system(size: 9))
-                }
-                
-                Text("\(battery)%")
-                    .font(.system(size: 12, weight: .black, design: .rounded))
-                
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.1))
-                        .frame(width: 25, height: 12)
-                    Capsule()
-                        .fill(battery < 20 ? Color.red : (isCharging ? Color.green : Color.white))
-                        .frame(width: CGFloat(battery) * 0.25, height: 12)
+            if let battery {
+                HStack(spacing: 6) {
+                    if isCharging {
+                        Image(systemName: "bolt.fill")
+                            .foregroundColor(.green)
+                            .font(.system(size: 9))
+                    }
+
+                    Text("\(battery)%")
+                        .font(.system(size: 12, weight: .black, design: .rounded))
+
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.1))
+                            .frame(width: 25, height: 12)
+                        Capsule()
+                            .fill(battery < 20 ? Color.red : (isCharging ? Color.green : Color.white))
+                            .frame(width: CGFloat(battery) * 0.25, height: 12)
+                    }
                 }
             }
         }
@@ -2923,22 +2951,28 @@ struct IslandView: View {
     }
 
     var statusBarBattery: some View {
-        HStack(spacing: 12) {
-            if state.showClock {
-                Text(Date(), style: .time)
-                    .font(.system(size: 12, weight: .black, design: .rounded))
-            }
-            HStack(spacing: 6) {
-                Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.75")
-                    .foregroundColor(state.isCharging ? .green : .white)
-                Text("\(state.batteryLevel)%")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+        Group {
+            if state.showClock || state.hasInternalBattery {
+                HStack(spacing: 12) {
+                    if state.showClock {
+                        Text(Date(), style: .time)
+                            .font(.system(size: 12, weight: .black, design: .rounded))
+                    }
+                    if state.hasInternalBattery {
+                        HStack(spacing: 6) {
+                            Image(systemName: state.isCharging ? "battery.100.bolt" : batteryIcon)
+                                .foregroundColor(state.isCharging ? .green : .white)
+                            Text("\(state.batteryLevel)%")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                        }
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Color.white.opacity(0.08))
+                .cornerRadius(12)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Color.white.opacity(0.08))
-        .cornerRadius(12)
     }
 
     var statusBarCenterInfo: some View {
@@ -3043,13 +3077,17 @@ struct IslandView: View {
     }
     
     var batteryContent: some View {
-        HStack(spacing: 12) {
-            Image(systemName: state.isCharging ? "battery.100.bolt" : "battery.75")
-                .foregroundColor(state.isCharging ? .green : .white)
-                .font(.system(size: 16, weight: .bold))
-            
-            Text("\(state.batteryLevel)%")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
+        Group {
+            if state.hasInternalBattery {
+                HStack(spacing: 12) {
+                    Image(systemName: state.isCharging ? "battery.100.bolt" : batteryIcon)
+                        .foregroundColor(state.isCharging ? .green : .white)
+                        .font(.system(size: 16, weight: .bold))
+
+                    Text("\(state.batteryLevel)%")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                }
+            }
         }
         .padding(.bottom, 6)
         .frame(maxHeight: .infinity, alignment: .bottom)

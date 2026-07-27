@@ -168,6 +168,7 @@ class IslandState: ObservableObject {
     @Published var hasNotch: Bool = false
     
     // Battery State
+    @Published var hasInternalBattery: Bool = false
     @Published var batteryLevel: Int = 100
     @Published var isCharging: Bool = false
     
@@ -1064,7 +1065,7 @@ class IslandState: ObservableObject {
         // A pending inactivity timer must not collapse the completion state.
         cancelCollapseTimer()
         isPomodoroRinging = true
-        isExpanded = true
+        isExpanded = false
         
         alarmSound?.loops = true
         alarmSound?.play()
@@ -1080,6 +1081,10 @@ class IslandState: ObservableObject {
     func stopPomodoroAlarm() {
         isPomodoroRinging = false
         alarmSound?.stop()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+            isExpanded = false
+            mode = .compact
+        }
     }
     
     func stopAlarm() {
@@ -1152,7 +1157,11 @@ class IslandState: ObservableObject {
             case .music: return 400
             case .timer: return 420
             case .notes: return 520
-            case .productivity: return 520
+            case .productivity:
+                if isPomodoroRinging {
+                    return hasNotch ? max(notchWidth, 360) : 360
+                }
+                return 520
             default: return 420
             }
         } else {
@@ -1186,7 +1195,11 @@ class IslandState: ObservableObject {
             case .volume: return 150
             case .timer: return hasNotch ? 420 : 380
             case .notes: return hasNotch ? 500 : 460
-            case .productivity: return hasNotch ? 520 : 480
+            case .productivity:
+                if isPomodoroRinging {
+                    return hasNotch ? notchHeight + 64 : 64
+                }
+                return hasNotch ? 520 : 480
             default: return 420
             }
         } else {

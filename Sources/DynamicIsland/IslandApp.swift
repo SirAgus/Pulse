@@ -205,6 +205,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.handleStateChange() }
             .store(in: &cancellables)
+
+        // Pomodoro completion has its own compact expanded geometry. Observe it
+        // directly so the NSWindow resizes with the SwiftUI alert even when the
+        // mode and expansion state themselves do not change.
+        IslandState.shared.$isPomodoroRinging
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.handleStateChange() }
+            .store(in: &cancellables)
             
         IslandState.shared.$activeCategory
             .receive(on: RunLoop.main)

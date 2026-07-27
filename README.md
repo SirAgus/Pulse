@@ -61,28 +61,26 @@ xattr -cr /Applications/PULSE.app
 
 ## 📸 Capturas de Pantalla
 
-### Vista General
-![Full Demo](Resources/screenshots/full_demo.png)
+### Enfoque
+| Configuración de sesión | Sesión compacta |
+| :---: | :---: |
+| ![Configuración de una sesión de enfoque](Resources/screenshots/focus.png) | ![Temporizador de enfoque compacto](Resources/screenshots/focus_collapsed.png) |
 
-### Modos Expandidos
-| Música | Productividad (Pomodoro) | Notas |
-| :---: | :---: | :---: |
-| ![Música](Resources/screenshots/music_sound.png) | ![Focus](Resources/screenshots/focus.png) | ![Notas](Resources/screenshots/notes.png) |
+| Finalización compacta | Finalización expandida |
+| :---: | :---: |
+| ![Aviso compacto de sesión completada](Resources/screenshots/focus_end_collapse.png) | ![Aviso expandido de sesión completada](Resources/screenshots/focus_end_extend.png) |
 
-### Utilidades y Widgets
-| Sistema | Portapapeles | Cámara y Alarmas |
-| :---: | :---: | :---: |
-| ![Sistema](Resources/screenshots/apps_widgets.png) | ![Portapapeles](Resources/screenshots/clypaste.png) | ![Cámara](Resources/screenshots/camera_and_alarms.png) |
+### Música
+| Reproductor expandido | Reproductor compacto |
+| :---: | :---: |
+| ![Controles de música expandidos](Resources/screenshots/music_sound.png) | ![Música compacta en el notch](Resources/screenshots/music_collapsed.png) |
 
-### Personalización
-| Configuración | Estilo Liquid Glass | Widgets Personalizados |
+### Sistema y personalización
+| Aplicaciones y widgets | Cámara y alarmas | Configuración |
 | :---: | :---: | :---: |
-| ![Configuración](Resources/screenshots/settings.png) | ![Liquid Glass](Resources/screenshots/change_bg.png) | ![Widgets](Resources/screenshots/add_widgets.png) |
+| ![Aplicaciones y widgets del sistema](Resources/screenshots/apps_widgets.png) | ![Cámara y gestión de alarmas](Resources/screenshots/camera_and_alarms.png) | ![Personalización de Pulse](Resources/screenshots/settings.png) |
 
-### Modos Compactos y Alertas
-| Música Compacta | Alerta de Enfoque | Alerta de Enfoque (Expandida) |
-| :---: | :---: | :---: |
-| ![Música](Resources/screenshots/music_collapsed.png) | ![Focus Collapsed](Resources/screenshots/focus_collapsed.png) | ![Focus Complete](Resources/screenshots/focus_complete.png) |
+![Selector para añadir widgets](Resources/screenshots/add_widgets.png)
 
 ---
 

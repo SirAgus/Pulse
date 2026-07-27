@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # Configuration
-VERSION="${1:-0.03.0}"
+VERSION="${1:-0.04.0}"
 EXECUTABLE_NAME="DynamicIsland"
 APP_DISPLAY_NAME="PULSE"
 APP_BUNDLE="$APP_DISPLAY_NAME.app"
@@ -25,7 +25,7 @@ cp "$BUILD_DIR/$EXECUTABLE_NAME" "$APP_BUNDLE/Contents/MacOS/$EXECUTABLE_NAME"
 
 # Copy Resources (icons, images, etc.)
 if [ -d "Resources" ]; then
-    cp -R Resources/* "$APP_BUNDLE/Contents/Resources/"
+    COPYFILE_DISABLE=1 cp -R Resources/* "$APP_BUNDLE/Contents/Resources/"
     echo "📁 Resources copied"
 fi
 
@@ -71,6 +71,11 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<EOF
 </dict>
 </plist>
 EOF
+
+# Strip Finder metadata from the generated bundle only. Extended attributes and
+# .DS_Store files invalidate code signatures when screenshots were copied in.
+find "$APP_BUNDLE" -name ".DS_Store" -delete
+xattr -cr "$APP_BUNDLE"
 
 # Apply an ad-hoc signature so the bundle has a consistent code signature.
 # A Developer ID certificate is still required to notarize public releases.
